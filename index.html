@@ -4,102 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AAVE Portfolio Tracker</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: auto;
-        }
-        .card {
-            background-color: #1e1e1e;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        h2 {
-            margin-top: 0;
-            color: #bb86fc;
-            border-bottom: 1px solid #333;
-            padding-bottom: 10px;
-        }
-        .grid-summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        .summary-item {
-            background-color: #2c2c2c;
-            padding: 15px;
-            border-radius: 6px;
-            text-align: center;
-        }
-        .summary-value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #03dac6;
-            margin-top: 10px;
-        }
-        .form-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        input, select, button {
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #444;
-            background-color: #333;
-            color: #fff;
-        }
-        button {
-            background-color: #bb86fc;
-            color: #000;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background-color 0.2s;
-        }
-        button:hover {
-            background-color: #9965f4;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 0.9em;
-        }
-        th, td {
-            border: 1px solid #333;
-            padding: 12px;
-            text-align: center;
-        }
-        th {
-            background-color: #2c2c2c;
-            color: #bb86fc;
-        }
-        .positive { color: #03dac6; }
-        .negative { color: #cf6679; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <div class="container">
     <div class="card">
         <h2>Painel de Controle AAVE</h2>
-        
+
         <div class="form-group">
             <label>Cotação Atual (R$):</label>
-            <input type="number" id="currentPriceInput" step="0.01" value="481.46" oninput="updateDashboard()">
+            <input type="number" id="currentPriceInput" step="0.01" value="481.46">
         </div>
 
         <div class="grid-summary">
@@ -124,6 +39,12 @@
                 <div class="summary-value" id="valRealizedProfit">R$ 0,00</div>
             </div>
         </div>
+
+        <div class="backup-bar">
+            <button id="btnBackup" class="btn-secondary">Fazer Backup</button>
+            <button id="btnRestore" class="btn-secondary">Restaurar Backup</button>
+            <input type="file" id="restoreInput" accept=".json,application/json" style="display: none;">
+        </div>
     </div>
 
     <div class="card">
@@ -135,7 +56,7 @@
             </select>
             <input type="number" id="opBrl" placeholder="Valor (R$)" step="0.01">
             <input type="number" id="opAave" placeholder="Quantidade (AAVE)" step="0.00000001">
-            <button onclick="addTransaction()">Adicionar Operação</button>
+            <button id="btnAdd">Adicionar Operação</button>
         </div>
     </div>
 
@@ -160,184 +81,9 @@
     </div>
 </div>
 
-<script>
-    // Initial State Based on Conversation History
-    let transactions = [
-        { type: 'buy', aave: 0.42599000, brl: 1000.00 },
-        { type: 'buy', aave: 0.02322000, brl: 20.00 },
-        { type: 'sell', aave: 0.02321497, brl: 21.52 },
-        { type: 'buy', aave: 1.71529000, brl: 1543.84 },
-        { type: 'sell', aave: 1.57000000, brl: 1562.66 },
-        { type: 'buy', aave: 0.31940307, brl: 200.00 },
-        { type: 'buy', aave: 4.34576000, brl: 2000.00 },
-        { type: 'buy', aave: 11.92007000, brl: 5804.40 },
-        { type: 'buy', aave: 8.85894000, brl: 4000.00 }
-    ];
-
-    const formatCurrency = (value) => {
-        return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    };
-
-    const formatCrypto = (value) => {
-        return value.toFixed(8);
-    };
-
-    function processPortfolio() {
-        let lots = [];
-        let totalRealizedProfit = 0;
-        let tableData = [];
-        
-        const currentPrice = parseFloat(document.getElementById('currentPriceInput').value) || 0;
-
-        transactions.forEach((tx, index) => {
-            const unitPrice = tx.brl / tx.aave;
-            let realizedProfit = 0;
-            let status = 'open';
-
-            if (tx.type === 'buy') {
-                lots.push({ 
-                    id: index + 1, 
-                    originalAave: tx.aave, 
-                    availableAave: tx.aave, 
-                    unitPrice: unitPrice 
-                });
-            } else if (tx.type === 'sell') {
-                let remainingToSell = tx.aave;
-                let costBasis = 0;
-                
-                // Specific Identification: Sort lots by cheapest unit price
-                let availableLots = lots.filter(l => l.availableAave > 0).sort((a, b) => a.unitPrice - b.unitPrice);
-
-                for (let lot of availableLots) {
-                    if (remainingToSell <= 0) break;
-
-                    let amountTaken = Math.min(remainingToSell, lot.availableAave);
-                    lot.availableAave -= amountTaken;
-                    remainingToSell -= amountTaken;
-                    costBasis += (amountTaken * lot.unitPrice);
-                }
-
-                realizedProfit = tx.brl - costBasis;
-                totalRealizedProfit += realizedProfit;
-                status = 'closed';
-            }
-
-            // Calculate potential for this row
-            let potential = null;
-            if (tx.type === 'buy') {
-                let activeLot = lots.find(l => l.id === (index + 1));
-                if (activeLot && activeLot.availableAave > 0) {
-                    potential = currentPrice - unitPrice;
-                } else {
-                    status = 'closed';
-                }
-            }
-
-            tableData.push({
-                id: index + 1,
-                type: tx.type === 'buy' ? 'Compra' : 'Venda',
-                aave: tx.aave,
-                brl: tx.brl,
-                unitPrice: unitPrice,
-                realizedProfit: tx.type === 'sell' ? realizedProfit : null,
-                potential: potential,
-                status: status
-            });
-        });
-
-        // Calculate current totals from active lots
-        let totalInvested = 0;
-        let totalCoins = 0;
-
-        lots.forEach(lot => {
-            if (lot.availableAave > 0) {
-                totalCoins += lot.availableAave;
-                totalInvested += (lot.availableAave * lot.unitPrice);
-            }
-        });
-
-        const avgPrice = totalCoins > 0 ? totalInvested / totalCoins : 0;
-        const marketValue = totalCoins * currentPrice;
-
-        return {
-            totalInvested,
-            totalCoins,
-            avgPrice,
-            marketValue,
-            totalRealizedProfit,
-            tableData
-        };
-    }
-
-    function updateDashboard() {
-        const data = processPortfolio();
-
-        // Update Summary Cards
-        document.getElementById('valTotalInvested').innerText = formatCurrency(data.totalInvested);
-        document.getElementById('valTotalCoins').innerText = formatCrypto(data.totalCoins) + ' AAVE';
-        document.getElementById('valAvgPrice').innerText = formatCurrency(data.avgPrice);
-        document.getElementById('valMarketValue').innerText = formatCurrency(data.marketValue);
-        
-        const elProfit = document.getElementById('valRealizedProfit');
-        elProfit.innerText = formatCurrency(data.totalRealizedProfit);
-        elProfit.className = 'summary-value ' + (data.totalRealizedProfit >= 0 ? 'positive' : 'negative');
-
-        // Update Table
-        const tbody = document.querySelector('#txTable tbody');
-        tbody.innerHTML = '';
-
-        data.tableData.forEach(row => {
-            const tr = document.createElement('tr');
-            
-            let profitHtml = '-';
-            if (row.realizedProfit !== null) {
-                const pClass = row.realizedProfit >= 0 ? 'positive' : 'negative';
-                profitHtml = `<span class="${pClass}">${row.realizedProfit > 0 ? '+' : ''}${formatCurrency(row.realizedProfit)}</span>`;
-            }
-
-            let potentialHtml = '- (Fechada)';
-            if (row.status === 'open' && row.type === 'Compra') {
-                const pClass = row.potential >= 0 ? 'positive' : 'negative';
-                potentialHtml = `<span class="${pClass}">${row.potential > 0 ? '+' : ''}${formatCurrency(row.potential)}</span>`;
-            } else if (row.type === 'Venda') {
-                potentialHtml = '-';
-            }
-
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td>${row.type}</td>
-                <td>${formatCrypto(row.aave)}</td>
-                <td>${formatCurrency(row.brl)}</td>
-                <td>${formatCurrency(row.unitPrice)}</td>
-                <td>${profitHtml}</td>
-                <td>${potentialHtml}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function addTransaction() {
-        const type = document.getElementById('opType').value;
-        const brl = parseFloat(document.getElementById('opBrl').value);
-        const aave = parseFloat(document.getElementById('opAave').value);
-
-        if (!brl || !aave || brl <= 0 || aave <= 0) {
-            alert('Por favor, insira valores válidos.');
-            return;
-        }
-
-        transactions.push({ type, brl, aave });
-        
-        // Clear inputs
-        document.getElementById('opBrl').value = '';
-        document.getElementById('opAave').value = '';
-        
-        updateDashboard();
-    }
-
-    // Initialize on load
-    window.onload = updateDashboard;
-</script>
+<script src="js/portfolio.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
 
 </body>
 </html>
