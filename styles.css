@@ -98,3 +98,9 @@ th {
 .btn-secondary:hover {
     background-color: #333;
 }
+.price-status {
+    font-size: 0.85em;
+    color: #888;
+}
+.price-status.ok { color: #03dac6; }
+.price-status.error { color: #cf6679; }

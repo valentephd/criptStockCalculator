@@ -70,6 +70,38 @@ function addTransaction() {
     updateDashboard();
 }
 
+// Formata a data/hora de uma string ISO no padrão pt-BR.
+function formatDateTime(iso) {
+    return new Date(iso).toLocaleString('pt-BR');
+}
+
+// Atualiza o rótulo de status do preço (com classe visual opcional).
+function setPriceStatus(text, cls) {
+    const el = document.getElementById('priceStatus');
+    el.innerText = text;
+    el.className = 'price-status' + (cls ? ' ' + cls : '');
+}
+
+// Busca o preço atual na API, atualiza o campo/dashboard e persiste o último
+// preço conhecido no LocalStorage. Em caso de falha, mantém o último preço.
+async function refreshPrice() {
+    setPriceStatus('Atualizando preço…');
+    try {
+        const price = await fetchAavePriceBRL();
+        const record = saveLastPrice(price);
+        document.getElementById('currentPriceInput').value = price;
+        updateDashboard();
+        setPriceStatus('Atualizado em ' + formatDateTime(record.updatedAt), 'ok');
+    } catch (e) {
+        const last = loadLastPrice();
+        if (last) {
+            setPriceStatus('Falha ao atualizar — usando preço de ' + formatDateTime(last.updatedAt), 'error');
+        } else {
+            setPriceStatus('Falha ao buscar o preço (' + e.message + ')', 'error');
+        }
+    }
+}
+
 // Wiring dos eventos e inicialização.
 window.addEventListener('load', () => {
     document.getElementById('currentPriceInput').addEventListener('input', updateDashboard);
@@ -90,5 +122,18 @@ window.addEventListener('load', () => {
         e.target.value = '';
     });
 
+    // Preço: começa com o último preço conhecido (mesmo offline), depois atualiza.
+    const last = loadLastPrice();
+    if (last) {
+        document.getElementById('currentPriceInput').value = last.price;
+        setPriceStatus('Último preço de ' + formatDateTime(last.updatedAt));
+    }
+
+    document.getElementById('btnRefreshPrice').addEventListener('click', refreshPrice);
+
     updateDashboard();
+
+    // Atualiza na inicialização e depois a cada 10 minutos.
+    refreshPrice();
+    setInterval(refreshPrice, PRICE_REFRESH_MS);
 });
