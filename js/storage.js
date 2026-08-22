@@ -105,57 +105,78 @@ function saveTransactions(txs) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(txs));
 }
 
+// Nome do arquivo de backup: backup_criptstock_AAMMDD_HHmm.json (hora local).
+function backupFileName() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const yy = pad(d.getFullYear() % 100);
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `backup_criptstock_${yy}${mm}${dd}_${hh}${mi}.json`;
+}
+
 // Exporta TODO o conteúdo do LocalStorage (transactions, lastPrice,
-// systemConfigs e quaisquer outras chaves) para backup_criptstock.json.
+// systemConfigs e quaisquer outras chaves). Cada valor é gravado como JSON
+// real (objeto/array), sem virar string escapada.
 function exportBackup() {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        data[key] = localStorage.getItem(key);
+        const raw = localStorage.getItem(key);
+        try {
+            data[key] = JSON.parse(raw); // objeto/array real
+        } catch (e) {
+            data[key] = raw; // valor não-JSON: mantém a string
+        }
     }
-    const envelope = {
-        app: 'criptStockCalculator',
-        version: 2,
-        exportedAt: new Date().toISOString(),
-        data: data
-    };
-    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'backup_criptstock.json';
+    a.download = backupFileName();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
 
-// Importa um arquivo de backup e restaura o LocalStorage.
-// Aceita o envelope novo ({ data: {...} }) ou o formato antigo (array puro de
-// transações, retrocompatível). Em erro, mantém os dados atuais e avisa.
-// onDone() é chamado após restaurar com sucesso, para recarregar a UI.
+// Grava um mapa { chave: valor } no LocalStorage (valor objeto -> JSON string).
+function restoreDataMap(map) {
+    Object.keys(map).forEach(key => {
+        const value = map[key];
+        localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+    });
+}
+
+// Importa um arquivo de backup e restaura o LocalStorage. Aceita:
+//  - o formato novo (objeto { chave: conteúdo });
+//  - o envelope antigo ({ app, version, data: {...} });
+//  - o formato bem antigo (array puro de transações).
+// Em erro, mantém os dados atuais e avisa. onDone() recarrega a UI.
 function importBackup(file, onDone) {
     const reader = new FileReader();
     reader.onload = () => {
         try {
             const parsed = JSON.parse(reader.result);
 
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.data && typeof parsed.data === 'object') {
-                // Envelope de dump completo: grava cada chave/valor tal como estava.
-                Object.keys(parsed.data).forEach(key => {
-                    const value = parsed.data[key];
-                    localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
-                });
-                if (typeof onDone === 'function') onDone();
-                alert('Backup completo restaurado com sucesso.');
-                return;
-            }
-
+            // Formato bem antigo: array puro de transações.
             if (isValidTransactions(parsed)) {
-                // Formato antigo: apenas a lista de transações.
                 saveTransactions(parsed);
                 if (typeof onDone === 'function') onDone();
                 alert('Backup (formato antigo) restaurado: ' + parsed.length + ' operações.');
+                return;
+            }
+
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                // Envelope antigo tem { data: {...} } + app/version; caso contrário,
+                // o próprio objeto já é o mapa de dados (formato novo).
+                const isEnvelope = parsed.data && typeof parsed.data === 'object'
+                    && (parsed.app || parsed.version || parsed.exportedAt);
+                restoreDataMap(isEnvelope ? parsed.data : parsed);
+                if (typeof onDone === 'function') onDone();
+                alert('Backup restaurado com sucesso.');
                 return;
             }
 
