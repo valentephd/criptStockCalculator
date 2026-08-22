@@ -1,18 +1,29 @@
+/* Paleta base do sistema (tom slate escuro, teal suave nos destaques) */
+:root {
+    --bg: #151a1e;         /* fundo da página */
+    --card-bg: #1e272c;    /* fundo dos cards / menu / modal */
+    --panel-bg: #304149;   /* cabeçalho de tabela e inputs */
+    --border: #353e43;     /* borda dos cards e da tabela */
+    --text: #cfd9dc;       /* títulos e rótulos (branco levemente frio) */
+    --text-dim: #8a969b;   /* textos suaves (status, cabeçalho de tabela) */
+    --accent: #28a787;     /* teal suave (valores, ação primária) */
+    --accent-hover: #2fbf98;
+    --value: #28a787;
+    --positive: #28a787;
+    --negative: #e0757f;
+}
+
 html, body {
     height: 100%;
 }
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #121212;
-    color: #e0e0e0;
+    background-color: var(--bg);
+    color: var(--text);
     margin: 0;
     padding: 20px;
     box-sizing: border-box;
     overflow: hidden; /* a página não rola; a rolagem fica no menu e no histórico */
-}
-.container {
-    max-width: 1200px;
-    margin: auto;
 }
 
 /* App = linha flex centralizada: menu (esquerda) + coluna principal.
@@ -43,50 +54,53 @@ body {
     min-height: 0; /* habilita a rolagem interna do histórico */
 }
 .card {
-    background-color: #1e1e1e;
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    background-color: var(--card-bg);
+    border: 2px solid var(--border);
+    padding: 8px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+    box-shadow: 8px 10px 16px rgba(0, 0, 0, 0.25);
 }
 h2 {
     margin-top: 0;
-    color: #bb86fc;
-    border-bottom: 1px solid #333;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
     padding-bottom: 10px;
 }
-/* Dois cards de resumo lado a lado */
+
+/* Dois cards de resumo lado a lado (rótulo à esquerda, valor à direita) */
 .summary-cards {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 16px;
 }
 @media (max-width: 700px) {
     .summary-cards {
         grid-template-columns: 1fr;
     }
 }
+.summary-card h2 {
+    font-size: 1.4em;
+    padding-bottom: 0px;
+    margin-bottom: 0px;
+}
 .summary-line {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid #2c2c2c;
-}
-.summary-line:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
+    padding: 2px 0;
 }
 .summary-label {
-    color: #ddd;
+    color: var(--text);
+    font-size: 1.1em;
 }
 .summary-value {
     font-weight: bold;
-    color: #03dac6;
-    font-size: 1.25em;
+    color: var(--value);
+    font-size: 1.1em;
     white-space: nowrap;
 }
+
 .form-group {
     display: flex;
     gap: 10px;
@@ -97,38 +111,38 @@ h2 {
 input, select, button {
     padding: 10px;
     border-radius: 4px;
-    border: 1px solid #444;
-    background-color: #333;
-    color: #fff;
+    border: 1px solid var(--border);
+    background-color: var(--panel-bg);
+    color: var(--text);
 }
 button {
-    background-color: #bb86fc;
-    color: #000;
+    background-color: var(--accent);
+    color: #06231a;
     border: none;
     cursor: pointer;
     font-weight: bold;
     transition: background-color 0.2s;
 }
 button:hover {
-    background-color: #9965f4;
+    background-color: var(--accent-hover);
 }
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin-top: 4px;
     font-size: 0.9em;
 }
 th, td {
-    border: 1px solid #333;
-    padding: 12px;
+    border: 1px solid var(--border);
+    padding: 8px;
     text-align: center;
 }
 th {
-    background-color: #2c2c2c;
-    color: #bb86fc;
+    background-color: var(--panel-bg);
+    color: var(--text-dim);
 }
-.positive { color: #03dac6; }
-.negative { color: #cf6679; }
+.positive { color: var(--positive); }
+.negative { color: var(--negative); }
 
 /* Barra de backup / restauração */
 .backup-bar {
@@ -138,33 +152,33 @@ th {
     margin-top: 10px;
 }
 .btn-secondary {
-    background-color: #2c2c2c;
-    color: #bb86fc;
-    border: 1px solid #444;
+    background-color: var(--panel-bg);
+    color: var(--accent);
+    border: 1px solid var(--border);
 }
 .btn-secondary:hover {
-    background-color: #333;
+    background-color: #26332e;
 }
 .price-status {
     font-size: 0.85em;
-    color: #888;
+    color: var(--text-dim);
 }
-.price-status.ok { color: #03dac6; }
-.price-status.error { color: #cf6679; }
+.price-status.ok { color: var(--positive); }
+.price-status.error { color: var(--negative); }
 
 /* Botão de remover linha do histórico */
 .btn-remove {
-    background-color: #3a2327;
-    color: #cf6679;
-    border: 1px solid #5a2b32;
+    background-color: transparent;
+    color: var(--negative);
+    border: 1px solid var(--border);
     padding: 6px 10px;
     font-size: 0.9em;
     font-weight: bold;
     line-height: 1;
 }
 .btn-remove:hover {
-    background-color: #cf6679;
-    color: #000;
+    background-color: var(--negative);
+    color: #1a0d0f;
 }
 
 /* Cabeçalho em 3 partes: menu (esquerda) | título (centro) | ação (direita) */
@@ -172,15 +186,28 @@ th {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 .header-left { justify-self: start; }
 .header-right { justify-self: end; }
+#btnOpenModal {
+    border-radius: 16px;
+    padding: 11px 20px;
+    box-shadow: 4px 6px 12px rgba(0, 0, 0, 0.35);
+    transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+#btnOpenModal:hover {
+    box-shadow: 6px 8px 18px rgba(0, 0, 0, 0.45);
+    transform: translateY(-1px);
+}
+#btnOpenModal:active {
+    transform: translateY(0);
+    box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.4);
+}
 .app-title {
     justify-self: center;
     text-align: center;
-    color: #bb86fc;
+    color: var(--text);
     margin: 0;
 }
 
@@ -189,8 +216,8 @@ th {
     font-size: 1.2em;
     line-height: 1;
     padding: 8px 14px;
-    background-color: #bb86fc;
-    color: #000;
+    background-color: var(--accent);
+    color: #06231a;
 }
 
 /* Menu lateral (recolhível). Anima a largura (flex-basis) de 0 -> 280px,
@@ -210,7 +237,8 @@ th {
     width: 280px;
     height: 100%;
     box-sizing: border-box;
-    background-color: #1e1e1e;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 20px;
     display: flex;
@@ -218,18 +246,18 @@ th {
     overflow-y: auto; /* o menu nunca ultrapassa a altura da página */
 }
 .sidebar h3 {
-    color: #bb86fc;
+    color: var(--text);
     font-size: 1em;
     margin-top: 0;
     margin-bottom: 8px;
 }
 .sidebar-title {
     text-align: center;
-    color: #bb86fc;
+    color: var(--text);
     margin-top: 0;
     margin-bottom: 20px;
     padding-bottom: 10px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border);
 }
 .sidebar-section {
     margin-bottom: 20px;
@@ -244,6 +272,7 @@ th {
     flex-direction: column;
     gap: 10px;
 }
+
 /* Card do histórico: ocupa o espaço restante e rola por dentro */
 .history-card {
     flex: 1 1 auto;
@@ -255,6 +284,8 @@ th {
 }
 .history-card h2 {
     flex: 0 0 auto;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
 }
 .table-wrap {
     flex: 1 1 auto;
@@ -287,7 +318,8 @@ th {
 }
 .modal-box {
     position: relative;
-    background-color: #1e1e1e;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
     padding: 25px;
     border-radius: 8px;
     width: 400px;
@@ -304,10 +336,10 @@ th {
 }
 .modal-form label {
     font-size: 0.85em;
-    color: #aaa;
+    color: var(--text-dim);
     margin-top: 8px;
 }
-/* Toggle deslizante Compra/Venda no modal */
+/* Toggle deslizante Compra/Venda no modal (cores semânticas fixas) */
 .op-toggle {
     position: relative;
     width: 170px;
@@ -373,17 +405,17 @@ th {
 
 /* Botão de editar linha do histórico */
 .btn-edit {
-    background-color: #2c2c3a;
-    color: #bb86fc;
-    border: 1px solid #444;
+    background-color: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
     padding: 6px 10px;
     font-size: 0.9em;
     line-height: 1;
     margin-right: 6px;
 }
 .btn-edit:hover {
-    background-color: #bb86fc;
-    color: #000;
+    background-color: var(--accent);
+    color: #06231a;
 }
 .modal-actions {
     display: flex;
