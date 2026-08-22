@@ -1,16 +1,18 @@
-/* Paleta base do sistema (tom slate escuro, teal suave nos destaques) */
+/* Paleta base do sistema (fundo neutro; cor só onde tem significado).
+   Números neutros ficam em branco/claro; verde = ganho, vermelho = perda;
+   azul = accent de interação (botões), para não competir com o verde. */
 :root {
-    --bg: #151a1e;         /* fundo da página */
-    --card-bg: #1e272c;    /* fundo dos cards / menu / modal */
-    --panel-bg: #304149;   /* cabeçalho de tabela e inputs */
-    --border: #353e43;     /* borda dos cards e da tabela */
-    --text: #cfd9dc;       /* títulos e rótulos (branco levemente frio) */
-    --text-dim: #8a969b;   /* textos suaves (status, cabeçalho de tabela) */
-    --accent: #28a787;     /* teal suave (valores, ação primária) */
-    --accent-hover: #2fbf98;
-    --value: #28a787;
-    --positive: #28a787;
-    --negative: #e0757f;
+    --bg: #12151a;         /* fundo da página (cinza-ardósia neutro) */
+    --card-bg: #1b2027;    /* fundo dos cards / menu / modal */
+    --panel-bg: #252c35;   /* cabeçalho de tabela e inputs */
+    --border: #2f3742;     /* borda dos cards e da tabela */
+    --text: #e6eaee;       /* títulos e rótulos */
+    --text-dim: #8b96a3;   /* textos suaves (rótulos, status, cabeçalho) */
+    --value: #eef2f5;      /* números neutros (branco, sem cor) */
+    --accent: #5b8def;     /* azul de interação (botões, links, menu) */
+    --accent-hover: #6f9bf2;
+    --positive: #4bbf8a;   /* ganho (verde) */
+    --negative: #e0757f;   /* perda (vermelho) */
 }
 
 html, body {
@@ -91,7 +93,7 @@ h2 {
     padding: 2px 0;
 }
 .summary-label {
-    color: var(--text);
+    color: var(--text-dim);
     font-size: 1.1em;
 }
 .summary-value {
@@ -117,7 +119,7 @@ input, select, button {
 }
 button {
     background-color: var(--accent);
-    color: #06231a;
+    color: #ffffff;
     border: none;
     cursor: pointer;
     font-weight: bold;
@@ -157,7 +159,7 @@ th {
     border: 1px solid var(--border);
 }
 .btn-secondary:hover {
-    background-color: #26332e;
+    background-color: #2c333d;
 }
 .price-status {
     font-size: 0.85em;
@@ -178,7 +180,7 @@ th {
 }
 .btn-remove:hover {
     background-color: var(--negative);
-    color: #1a0d0f;
+    color: #ffffff;
 }
 
 /* Cabeçalho em 3 partes: menu (esquerda) | título (centro) | ação (direita) */
@@ -217,7 +219,7 @@ th {
     line-height: 1;
     padding: 8px 14px;
     background-color: var(--accent);
-    color: #06231a;
+    color: #ffffff;
 }
 
 /* Menu lateral (recolhível). Anima a largura (flex-basis) de 0 -> 280px,
@@ -415,7 +417,7 @@ th {
 }
 .btn-edit:hover {
     background-color: var(--accent);
-    color: #06231a;
+    color: #ffffff;
 }
 .modal-actions {
     display: flex;
