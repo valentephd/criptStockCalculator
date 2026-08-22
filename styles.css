@@ -1,13 +1,46 @@
+html, body {
+    height: 100%;
+}
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #121212;
     color: #e0e0e0;
     margin: 0;
     padding: 20px;
+    box-sizing: border-box;
+    overflow: hidden; /* a página não rola; a rolagem fica no menu e no histórico */
 }
 .container {
     max-width: 1200px;
     margin: auto;
+}
+
+/* App = linha flex centralizada: menu (esquerda) + coluna principal.
+   A coluna principal tem largura própria e NÃO encolhe quando o menu abre em
+   telas grandes: o menu ocupa o espaço à esquerda, empurrando o conjunto. */
+.app {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    height: 100%;
+}
+.app-main {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 1200px; /* até 1200px; pode encolher em telas estreitas */
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+}
+.app-header {
+    flex: 0 0 auto;
+}
+.content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0; /* habilita a rolagem interna do histórico */
 }
 .card {
     background-color: #1e1e1e;
@@ -24,9 +57,14 @@ h2 {
 }
 .grid-summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 15px;
     margin-bottom: 20px;
+}
+@media (max-width: 640px) {
+    .grid-summary {
+        grid-template-columns: 1fr;
+    }
 }
 .summary-item {
     background-color: #2c2c2c;
@@ -104,3 +142,160 @@ th {
 }
 .price-status.ok { color: #03dac6; }
 .price-status.error { color: #cf6679; }
+
+/* Botão de remover linha do histórico */
+.btn-remove {
+    background-color: #3a2327;
+    color: #cf6679;
+    border: 1px solid #5a2b32;
+    padding: 6px 12px;
+    font-size: 0.85em;
+}
+.btn-remove:hover {
+    background-color: #cf6679;
+    color: #000;
+}
+
+/* Cabeçalho em 3 partes: menu (esquerda) | título (centro) | ação (direita) */
+.app-header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.header-left { justify-self: start; }
+.header-right { justify-self: end; }
+.app-title {
+    justify-self: center;
+    text-align: center;
+    color: #bb86fc;
+    margin: 0;
+}
+
+/* Botão de abrir/fechar o menu (dentro do cabeçalho) */
+.menu-toggle {
+    font-size: 1.2em;
+    line-height: 1;
+    padding: 8px 14px;
+    background-color: #bb86fc;
+    color: #000;
+}
+
+/* Menu lateral (recolhível). Anima a largura (flex-basis) de 0 -> 280px,
+   abrindo à esquerda da coluna principal; a largura interna é fixa para o
+   conteúdo do menu não refluir durante a animação. */
+.sidebar {
+    flex: 0 0 0px;
+    overflow: hidden;
+    margin-right: 0;
+    transition: flex-basis 0.25s ease, margin-right 0.25s ease;
+}
+.app.menu-open .sidebar {
+    flex-basis: 280px;
+    margin-right: 20px;
+}
+.sidebar-inner {
+    width: 280px;
+    height: 100%;
+    box-sizing: border-box;
+    background-color: #1e1e1e;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* o menu nunca ultrapassa a altura da página */
+}
+.sidebar h3 {
+    color: #bb86fc;
+    font-size: 1em;
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+.sidebar-title {
+    text-align: center;
+    color: #bb86fc;
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333;
+}
+.sidebar-section {
+    margin-bottom: 20px;
+}
+.sidebar-bottom {
+    margin-top: auto; /* ancora a cotação na base do menu */
+    margin-bottom: 0;
+}
+.sidebar .backup-bar,
+.sidebar .price-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+/* Card do histórico: ocupa o espaço restante e rola por dentro */
+.history-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
+    overflow: hidden;
+}
+.history-card h2 {
+    flex: 0 0 auto;
+}
+.table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto; /* rolagem vertical e horizontal só do histórico */
+}
+/* Cabeçalho da tabela fixo durante a rolagem */
+#txTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+/* Modal de nova operação */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.open {
+    display: flex;
+}
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0,0,0,0.6);
+}
+.modal-box {
+    position: relative;
+    background-color: #1e1e1e;
+    padding: 25px;
+    border-radius: 8px;
+    width: 400px;
+    max-width: 90vw;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.modal-form label {
+    font-size: 0.85em;
+    color: #aaa;
+    margin-top: 8px;
+}
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}

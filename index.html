@@ -3,87 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AAVE Portfolio Tracker</title>
+    <title>Painel de Controle Cripto</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="container">
-    <div class="card">
-        <h2>Painel de Controle AAVE</h2>
+<div class="app" id="app">
 
-        <div class="form-group">
-            <label>Cotação Atual (R$):</label>
-            <input type="number" id="currentPriceInput" step="0.01" value="481.46">
-            <button id="btnRefreshPrice" class="btn-secondary">Atualizar Preço</button>
-            <span id="priceStatus" class="price-status">—</span>
-        </div>
+    <!-- Menu lateral (irmão da coluna principal; abre à esquerda) -->
+    <aside class="sidebar">
+        <div class="sidebar-inner">
+            <h2 class="sidebar-title">Menu</h2>
+            <div class="sidebar-top">
+                <div class="sidebar-section">
+                    <div class="backup-bar">
+                        <button id="btnBackup" class="btn-secondary">Fazer Backup</button>
+                        <button id="btnRestore" class="btn-secondary">Restaurar Backup</button>
+                        <input type="file" id="restoreInput" accept=".json,application/json" style="display: none;">
+                    </div>
+                </div>
+            </div>
 
-        <div class="grid-summary">
-            <div class="summary-item">
-                <div>Total Investido</div>
-                <div class="summary-value" id="valTotalInvested">R$ 0,00</div>
-            </div>
-            <div class="summary-item">
-                <div>Total de Moedas</div>
-                <div class="summary-value" id="valTotalCoins">0.00 AAVE</div>
-            </div>
-            <div class="summary-item">
-                <div>Preço Médio</div>
-                <div class="summary-value" id="valAvgPrice">R$ 0,00</div>
-            </div>
-            <div class="summary-item">
-                <div>Valor de Mercado</div>
-                <div class="summary-value" id="valMarketValue">R$ 0,00</div>
-            </div>
-            <div class="summary-item">
-                <div>Lucro Realizado</div>
-                <div class="summary-value" id="valRealizedProfit">R$ 0,00</div>
+            <div class="sidebar-section sidebar-bottom">
+                <h3>Cotação Atual (R$)</h3>
+                <div class="price-box">
+                    <input type="number" id="currentPriceInput" step="0.01" value="481.46">
+                    <button id="btnRefreshPrice" class="btn-secondary">Atualizar Preço</button>
+                    <span id="priceStatus" class="price-status">—</span>
+                </div>
             </div>
         </div>
+    </aside>
 
-        <div class="backup-bar">
-            <button id="btnBackup" class="btn-secondary">Fazer Backup</button>
-            <button id="btnRestore" class="btn-secondary">Restaurar Backup</button>
-            <input type="file" id="restoreInput" accept=".json,application/json" style="display: none;">
-        </div>
+    <!-- Coluna principal: header + conteúdo (mesma largura) -->
+    <div class="app-main">
+        <header class="app-header">
+            <div class="header-left">
+                <button id="btnMenuToggle" class="menu-toggle" aria-label="Abrir menu">☰</button>
+            </div>
+            <h1 class="app-title">Painel de Controle</h1>
+            <div class="header-right">
+                <button id="btnOpenModal">Adicionar Nova Operação</button>
+            </div>
+        </header>
+
+        <main class="content">
+            <div class="card">
+                <div class="grid-summary">
+                    <!-- Linha 1 -->
+                    <div class="summary-item">
+                        <div>Total de Moedas</div>
+                        <div class="summary-value" id="valTotalCoins">0.00 AAVE</div>
+                    </div>
+                    <div class="summary-item">
+                        <div>Preço Médio Atual</div>
+                        <div class="summary-value" id="valAvgPrice">R$ 0,00</div>
+                    </div>
+                    <div class="summary-item">
+                        <div>Valor de Mercado</div>
+                        <div class="summary-value" id="valMarketValue">R$ 0,00</div>
+                    </div>
+                    <!-- Linha 2 -->
+                    <div class="summary-item">
+                        <div>Total Investido</div>
+                        <div class="summary-value" id="valTotalInvested">R$ 0,00</div>
+                    </div>
+                    <div class="summary-item">
+                        <div>Lucro Realizado</div>
+                        <div class="summary-value" id="valRealizedProfit">R$ 0,00</div>
+                    </div>
+                    <div class="summary-item">
+                        <div>Saldo</div>
+                        <div class="summary-value" id="valBalance">R$ 0,00</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card history-card">
+                <h2>Histórico de Operações</h2>
+                <div class="table-wrap">
+                <table id="txTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ID</th>
+                            <th>Data</th>
+                            <th>Operação</th>
+                            <th>Qtd (AAVE)</th>
+                            <th>Valor (R$)</th>
+                            <th>Preço Unit. (R$)</th>
+                            <th>Lucro Realizado</th>
+                            <th>Potencial vs Atual</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows generated by JS -->
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </main>
     </div>
+</div>
 
-    <div class="card">
+<!-- Modal: Nova Operação -->
+<div id="opModal" class="modal-overlay">
+    <div id="opModalBackdrop" class="modal-backdrop"></div>
+    <div class="modal-box">
         <h2>Nova Operação</h2>
-        <div class="form-group">
+        <div class="modal-form">
+            <label>Tipo</label>
             <select id="opType">
                 <option value="buy">Compra</option>
                 <option value="sell">Venda</option>
             </select>
+
+            <label>Valor (R$)</label>
             <input type="number" id="opBrl" placeholder="Valor (R$)" step="0.01">
+
+            <label>Quantidade (AAVE)</label>
             <input type="number" id="opAave" placeholder="Quantidade (AAVE)" step="0.00000001">
-            <button id="btnAdd">Adicionar Operação</button>
+
+            <label>Data da operação</label>
+            <input type="datetime-local" id="opDate">
+        </div>
+        <div class="modal-actions">
+            <button id="btnCancelModal" class="btn-secondary">Cancelar</button>
+            <button id="btnAdd">Adicionar</button>
         </div>
     </div>
+</div>
 
-    <div class="card" style="overflow-x: auto;">
-        <h2>Histórico de Operações</h2>
-        <table id="txTable">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Operação</th>
-                    <th>Qtd (AAVE)</th>
-                    <th>Valor (R$)</th>
-                    <th>Preço Unit. (R$)</th>
-                    <th>Lucro Realizado</th>
-                    <th>Potencial vs Atual</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Rows generated by JS -->
-            </tbody>
-        </table>
+<!-- Modal: Confirmação de remoção -->
+<div id="confirmModal" class="modal-overlay">
+    <div id="confirmBackdrop" class="modal-backdrop"></div>
+    <div class="modal-box">
+        <h2>Confirmação</h2>
+        <p id="confirmMessage"></p>
+        <div class="modal-actions">
+            <button id="btnConfirmCancel" class="btn-secondary">Cancelar</button>
+            <button id="btnConfirmYes" class="btn-remove">Remover</button>
+        </div>
     </div>
 </div>
 
 <script src="js/portfolio.js"></script>
+<script src="js/config.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/price.js"></script>
 <script src="js/app.js"></script>

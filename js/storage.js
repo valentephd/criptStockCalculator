@@ -1,9 +1,10 @@
-// Persistência das operações no LocalStorage, além de backup (exportar) e
-// restauração (importar) de um arquivo backup_transactions.json.
+// Persistência das operações no LocalStorage, migração da estrutura (id/date),
+// ordenação cronológica e backup/restore de TODO o LocalStorage (dump completo).
 
 const STORAGE_KEY = 'transactions';
 
 // Valida que o dado é um array de operações no formato { type, aave, brl }.
+// Os campos id/date são opcionais (registros legados podem não tê-los).
 function isValidTransactions(data) {
     return Array.isArray(data) && data.every(tx =>
         tx && (tx.type === 'buy' || tx.type === 'sell') &&
@@ -12,8 +13,76 @@ function isValidTransactions(data) {
     );
 }
 
-// Carrega as operações do LocalStorage. Se não houver nada salvo (ou o
-// conteúdo for inválido), começa em branco — sem forçar valores iniciais.
+// Ordena as transações por data ascendente (estável). Registros sem data
+// (legados) são tratados como os mais antigos, mantendo a ordem original.
+// IMPORTANTE: mantém o array em ordem cronológica para o motor de cálculo.
+function sortTransactionsByDate(txs) {
+    return txs
+        .map((tx, i) => [tx, i])
+        .sort((a, b) => {
+            const ta = a[0].dateTransaction ? new Date(a[0].dateTransaction).getTime() : -Infinity;
+            const tb = b[0].dateTransaction ? new Date(b[0].dateTransaction).getTime() : -Infinity;
+            if (ta !== tb) return ta - tb;
+            return a[1] - b[1]; // desempate estável pela posição original
+        })
+        .map(pair => pair[0]);
+}
+
+// Calcula qual deve ser o próximo ID: considera tanto o maior ID existente
+// quanto o tamanho do array, e soma 1. Evita colisões após exclusões.
+function computeNextTransactionId(txs) {
+    const maxId = txs.reduce((m, t) => (typeof t.id === 'number' && t.id > m ? t.id : m), 0);
+    return Math.max(maxId, txs.length) + 1;
+}
+
+// Recalcula e persiste o nextTransactionId a partir do estado atual do array.
+// Deve ser chamado após adicionar ou remover uma transação.
+function recalcNextTransactionId(txs) {
+    const next = computeNextTransactionId(txs);
+    setConfig('nextTransactionId', next);
+    return next;
+}
+
+// Garante que toda transação tenha `id` (sequencial) e a propriedade
+// `dateTransaction` (legado -> null). Ajusta o contador de IDs e deixa o
+// array ordenado por data.
+function migrateTransactions(txs) {
+    let changed = false;
+
+    // Ajusta o contador para acima do maior id já existente.
+    const maxId = txs.reduce((m, tx) => (typeof tx.id === 'number' && tx.id > m ? tx.id : m), 0);
+    const cfg = loadSystemConfigs();
+    if ((cfg.nextTransactionId || 1) <= maxId) {
+        cfg.nextTransactionId = maxId + 1;
+        saveSystemConfigs(cfg);
+    }
+
+    txs.forEach(tx => {
+        if (typeof tx.id !== 'number') {
+            tx.id = nextId();
+            changed = true;
+        }
+        // Compatibilidade: renomeia um eventual campo antigo `date`.
+        if (!('dateTransaction' in tx)) {
+            tx.dateTransaction = ('date' in tx) ? tx.date : null;
+            changed = true;
+        }
+        if ('date' in tx) {
+            delete tx.date;
+            changed = true;
+        }
+    });
+
+    const sorted = sortTransactionsByDate(txs);
+    recalcNextTransactionId(sorted);
+    if (changed) {
+        saveTransactions(sorted);
+    }
+    return sorted;
+}
+
+// Carrega as operações do LocalStorage e aplica a migração. Se não houver nada
+// salvo (ou o conteúdo for inválido), começa em branco — sem valores iniciais.
 function loadTransactions() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -22,7 +91,7 @@ function loadTransactions() {
     try {
         const parsed = JSON.parse(raw);
         if (isValidTransactions(parsed)) {
-            return parsed;
+            return migrateTransactions(parsed);
         }
         console.warn('Dados de transações inválidos no LocalStorage; começando em branco.');
     } catch (e) {
@@ -36,36 +105,61 @@ function saveTransactions(txs) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(txs));
 }
 
-// Exporta o conteúdo atual do LocalStorage para backup_transactions.json.
-function exportBackup(txs) {
-    const blob = new Blob([JSON.stringify(txs, null, 2)], { type: 'application/json' });
+// Exporta TODO o conteúdo do LocalStorage (transactions, lastPrice,
+// systemConfigs e quaisquer outras chaves) para backup_criptstock.json.
+function exportBackup() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        data[key] = localStorage.getItem(key);
+    }
+    const envelope = {
+        app: 'criptStockCalculator',
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        data: data
+    };
+    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'backup_transactions.json';
+    a.download = 'backup_criptstock.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
 
-// Importa um arquivo de backup. Valida o conteúdo antes de sobrescrever;
-// em caso de erro, avisa o usuário e mantém os dados atuais intactos.
-// onDone(novasTransacoes) é chamado após salvar com sucesso.
+// Importa um arquivo de backup e restaura o LocalStorage.
+// Aceita o envelope novo ({ data: {...} }) ou o formato antigo (array puro de
+// transações, retrocompatível). Em erro, mantém os dados atuais e avisa.
+// onDone() é chamado após restaurar com sucesso, para recarregar a UI.
 function importBackup(file, onDone) {
     const reader = new FileReader();
     reader.onload = () => {
         try {
             const parsed = JSON.parse(reader.result);
-            if (!isValidTransactions(parsed)) {
-                alert('Arquivo de backup inválido: esperado uma lista de operações { type, aave, brl }.');
+
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.data && typeof parsed.data === 'object') {
+                // Envelope de dump completo: grava cada chave/valor tal como estava.
+                Object.keys(parsed.data).forEach(key => {
+                    const value = parsed.data[key];
+                    localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+                });
+                if (typeof onDone === 'function') onDone();
+                alert('Backup completo restaurado com sucesso.');
                 return;
             }
-            saveTransactions(parsed);
-            if (typeof onDone === 'function') {
-                onDone(parsed);
+
+            if (isValidTransactions(parsed)) {
+                // Formato antigo: apenas a lista de transações.
+                saveTransactions(parsed);
+                if (typeof onDone === 'function') onDone();
+                alert('Backup (formato antigo) restaurado: ' + parsed.length + ' operações.');
+                return;
             }
-            alert('Backup restaurado com sucesso: ' + parsed.length + ' operações.');
+
+            alert('Arquivo de backup inválido.');
         } catch (e) {
             alert('Não foi possível ler o arquivo de backup: ' + e.message);
         }
