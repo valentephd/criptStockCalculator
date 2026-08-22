@@ -27,7 +27,7 @@ body {
 .app-main {
     display: flex;
     flex-direction: column;
-    flex: 0 1 1200px; /* até 1200px; pode encolher em telas estreitas */
+    flex: 0 1 1444px;
     min-width: 0;
     min-height: 0;
     height: 100%;
@@ -148,8 +148,10 @@ th {
     background-color: #3a2327;
     color: #cf6679;
     border: 1px solid #5a2b32;
-    padding: 6px 12px;
-    font-size: 0.85em;
+    padding: 6px 10px;
+    font-size: 0.9em;
+    font-weight: bold;
+    line-height: 1;
 }
 .btn-remove:hover {
     background-color: #cf6679;
@@ -283,6 +285,9 @@ th {
     max-width: 90vw;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
+.modal-box h2 {
+    text-align: center;
+}
 .modal-form {
     display: flex;
     flex-direction: column;
@@ -292,6 +297,84 @@ th {
     font-size: 0.85em;
     color: #aaa;
     margin-top: 8px;
+}
+/* Toggle deslizante Compra/Venda no modal */
+.op-toggle {
+    position: relative;
+    width: 170px;
+    height: 46px;
+    border-radius: 23px;
+    cursor: pointer;
+    user-select: none;
+    align-self: center;
+    margin-top: 4px;
+    border: none;
+    padding: 0;
+    transition: background-color 0.2s ease;
+}
+.op-toggle:hover {
+    filter: brightness(1.05);
+}
+.op-toggle .op-toggle-text {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    color: #000;
+    letter-spacing: 0.5px;
+}
+.op-toggle .op-toggle-knob {
+    position: absolute;
+    top: 5px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    transition: left 0.2s ease;
+}
+/* Estado Compra (gasto): vermelho, texto à esquerda, botão à direita */
+.op-toggle.toggle-buy,
+.op-toggle.toggle-buy:hover {
+    background-color: #cf6679;
+}
+.op-toggle.toggle-buy .op-toggle-text {
+    justify-content: flex-start;
+    padding-left: 20px;
+}
+.op-toggle.toggle-buy .op-toggle-knob {
+    left: calc(100% - 41px);
+}
+/* Estado Venda (liquidação): azul, texto à direita, botão à esquerda */
+.op-toggle.toggle-sell,
+.op-toggle.toggle-sell:hover {
+    background-color: #4dabf7;
+}
+.op-toggle.toggle-sell .op-toggle-text {
+    justify-content: flex-end;
+    padding-right: 20px;
+}
+.op-toggle.toggle-sell .op-toggle-knob {
+    left: 5px;
+}
+
+/* Botão de editar linha do histórico */
+.btn-edit {
+    background-color: #2c2c3a;
+    color: #bb86fc;
+    border: 1px solid #444;
+    padding: 6px 10px;
+    font-size: 0.9em;
+    line-height: 1;
+    margin-right: 6px;
+}
+.btn-edit:hover {
+    background-color: #bb86fc;
+    color: #000;
 }
 .modal-actions {
     display: flex;

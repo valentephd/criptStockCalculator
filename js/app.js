@@ -3,16 +3,23 @@
 
 let transactions = loadTransactions();
 
-// Formata a data/hora de uma string ISO no padrão pt-BR.
+// Formata a data/hora de uma string ISO no padrão pt-BR (usado no preço).
 function formatDateTime(iso) {
     return new Date(iso).toLocaleString('pt-BR');
 }
 
-// Valor "YYYY-MM-DDTHH:mm" (fuso local) para inputs datetime-local.
-function toLocalDatetimeValue(d) {
+// Valor "YYYY-MM-DD" (fuso local) para inputs type="date".
+function toLocalDateValue(d) {
     const pad = (n) => String(n).padStart(2, '0');
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-        'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+// Exibe a data da operação como dd/mm/aaaa, sem sofrer deslocamento de fuso
+// (usa a parte YYYY-MM-DD diretamente, seja ela date-only ou ISO completa).
+function formatDate(value) {
+    const parts = String(value).slice(0, 10).split('-');
+    if (parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+    return String(value);
 }
 
 function updateDashboard() {
@@ -20,7 +27,7 @@ function updateDashboard() {
 
     // Update Summary Cards
     document.getElementById('valTotalInvested').innerText = formatCurrency(data.totalInvested);
-    document.getElementById('valTotalCoins').innerText = formatCrypto(data.totalCoins) + ' AAVE';
+    document.getElementById('valTotalCoins').innerText = formatCrypto(data.totalCoins).replace('.', ',') + ' AAVE';
     document.getElementById('valAvgPrice').innerText = formatCurrency(data.avgPrice);
     document.getElementById('valMarketValue').innerText = formatCurrency(data.marketValue);
 
@@ -28,12 +35,11 @@ function updateDashboard() {
     elProfit.innerText = formatCurrency(data.totalRealizedProfit);
     elProfit.className = 'summary-value ' + (data.totalRealizedProfit >= 0 ? 'positive' : 'negative');
 
-    // Saldo = Lucro Realizado - Total Investido (com seta e sinal)
+    // Saldo = Lucro Realizado - Total Investido (seta no fim; cor indica o sinal)
     const balance = data.totalRealizedProfit - data.totalInvested;
     const elBalance = document.getElementById('valBalance');
     const arrow = balance >= 0 ? '▲' : '▼';
-    const sign = balance >= 0 ? '+' : '-';
-    elBalance.innerText = arrow + ' ' + sign + formatCurrency(Math.abs(balance));
+    elBalance.innerText = formatCurrency(Math.abs(balance)) + ' ' + arrow;
     elBalance.className = 'summary-value ' + (balance >= 0 ? 'positive' : 'negative');
 
     // Monta as linhas: # = posição cronológica (array por data asc), ID e Data
@@ -68,7 +74,7 @@ function updateDashboard() {
             potentialHtml = '-';
         }
 
-        const dateHtml = row.date ? formatDateTime(row.date) : '—';
+        const dateHtml = row.date ? formatDate(row.date) : '—';
 
         tr.innerHTML = `
             <td>${row.seq}</td>
@@ -80,7 +86,10 @@ function updateDashboard() {
             <td>${formatCurrency(row.unitPrice)}</td>
             <td>${profitHtml}</td>
             <td>${potentialHtml}</td>
-            <td><button class="btn-remove" data-remove="${row.realId}">Remover</button></td>
+            <td>
+                <button class="btn-edit" data-edit="${row.realId}" title="Editar">✏️</button>
+                <button class="btn-remove" data-remove="${row.realId}" title="Remover">✕</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -100,8 +109,10 @@ function removeTransaction(id) {
     });
 }
 
+// Salva a operação do modal: se estiver editando, atualiza a transação de
+// mesmo id; caso contrário, cria uma nova. Depois reordena por data.
 function addTransaction() {
-    const type = document.getElementById('opType').value;
+    const type = document.getElementById('opType').dataset.type;
     const brl = parseFloat(document.getElementById('opBrl').value);
     const aave = parseFloat(document.getElementById('opAave').value);
     const dateInput = document.getElementById('opDate').value;
@@ -111,26 +122,92 @@ function addTransaction() {
         return;
     }
 
-    const dateTransaction = dateInput ? new Date(dateInput).toISOString() : new Date().toISOString();
+    // Guarda a data apenas como "YYYY-MM-DD" (sem hora).
+    const dateTransaction = dateInput || toLocalDateValue(new Date());
 
-    const newId = computeNextTransactionId(transactions);
-    transactions.push({ id: newId, dateTransaction, type, brl, aave });
-    transactions = sortTransactionsByDate(transactions);
-    saveTransactions(transactions);
-    recalcNextTransactionId(transactions);
+    if (editingId !== null) {
+        // Edição: mantém o mesmo id, atualiza os demais campos.
+        const tx = transactions.find(t => t.id === editingId);
+        if (tx) {
+            tx.type = type;
+            tx.brl = brl;
+            tx.aave = aave;
+            tx.dateTransaction = dateTransaction;
+        }
+        transactions = sortTransactionsByDate(transactions);
+        saveTransactions(transactions);
+    } else {
+        // Nova operação.
+        const newId = computeNextTransactionId(transactions);
+        transactions.push({ id: newId, dateTransaction, type, brl, aave });
+        transactions = sortTransactionsByDate(transactions);
+        saveTransactions(transactions);
+        recalcNextTransactionId(transactions);
+    }
 
     closeModal();
     updateDashboard();
 }
 
-// ----- Modal de nova operação -----
+// ----- Modal de nova/edição de operação -----
 
-function openModal() {
-    document.getElementById('opType').value = 'buy';
-    document.getElementById('opBrl').value = '';
-    document.getElementById('opAave').value = '';
-    document.getElementById('opDate').value = toLocalDatetimeValue(new Date());
+// id da transação em edição (null = nova operação).
+let editingId = null;
+
+// Abre o modal. Sem argumento = nova operação; com uma transação = edição.
+function openModal(tx) {
+    const btnEl = document.getElementById('btnAdd');
+
+    if (tx) {
+        editingId = tx.id;
+        btnEl.textContent = 'Salvar';
+        setOpType(tx.type);
+        document.getElementById('opBrl').value = tx.brl;
+        document.getElementById('opAave').value = tx.aave;
+        document.getElementById('opDate').value = tx.dateTransaction
+            ? String(tx.dateTransaction).slice(0, 10)
+            : toLocalDateValue(new Date());
+    } else {
+        editingId = null;
+        btnEl.textContent = 'Adicionar';
+        setOpType('buy');
+        document.getElementById('opBrl').value = '';
+        document.getElementById('opAave').value = '';
+        document.getElementById('opDate').value = toLocalDateValue(new Date());
+    }
     document.getElementById('opModal').classList.add('open');
+}
+
+// Abre o modal em modo edição para a transação de id informado.
+function editTransaction(id) {
+    const tx = transactions.find(t => t.id === id);
+    if (tx) openModal(tx);
+}
+
+// Atualiza o título do modal com o modo e o tipo atuais
+// (ex.: "Nova Operação - Compra" / "Editar Operação - Venda").
+function updateModalTitle() {
+    const base = editingId !== null ? 'Editar Operação' : 'Nova Operação';
+    const type = document.getElementById('opType').dataset.type;
+    const label = type === 'buy' ? 'Compra' : 'Venda';
+    document.getElementById('opModalTitle').textContent = base + ' - ' + label;
+}
+
+// Define o tipo no toggle deslizante (texto, cor e valor em data-type) e
+// reflete a mudança no título do modal.
+function setOpType(type) {
+    const el = document.getElementById('opType');
+    el.dataset.type = type;
+    el.querySelector('.op-toggle-text').textContent = type === 'buy' ? 'Compra' : 'Venda';
+    el.classList.toggle('toggle-buy', type === 'buy');
+    el.classList.toggle('toggle-sell', type === 'sell');
+    updateModalTitle();
+}
+
+// Alterna entre Compra e Venda.
+function toggleOpType() {
+    const current = document.getElementById('opType').dataset.type;
+    setOpType(current === 'buy' ? 'sell' : 'buy');
 }
 
 function closeModal() {
@@ -197,11 +274,17 @@ window.addEventListener('load', () => {
     document.getElementById('btnMenuToggle').addEventListener('click', toggleMenu);
     applyMenuState(getConfig('menuExpanded', false));
 
-    // Remoção de linha do histórico (listener delegado)
+    // Editar/Remover linha do histórico (listener delegado)
     document.querySelector('#txTable tbody').addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-remove]');
-        if (!btn) return;
-        removeTransaction(Number(btn.getAttribute('data-remove')));
+        const editBtn = e.target.closest('button[data-edit]');
+        if (editBtn) {
+            editTransaction(Number(editBtn.getAttribute('data-edit')));
+            return;
+        }
+        const removeBtn = e.target.closest('button[data-remove]');
+        if (removeBtn) {
+            removeTransaction(Number(removeBtn.getAttribute('data-remove')));
+        }
     });
 
     // Cotação
@@ -209,7 +292,8 @@ window.addEventListener('load', () => {
     document.getElementById('btnRefreshPrice').addEventListener('click', refreshPrice);
 
     // Modal de nova operação
-    document.getElementById('btnOpenModal').addEventListener('click', openModal);
+    document.getElementById('btnOpenModal').addEventListener('click', () => openModal());
+    document.getElementById('opType').addEventListener('click', toggleOpType);
     document.getElementById('btnAdd').addEventListener('click', addTransaction);
     document.getElementById('btnCancelModal').addEventListener('click', closeModal);
     document.getElementById('opModalBackdrop').addEventListener('click', closeModal);

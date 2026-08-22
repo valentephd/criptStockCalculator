@@ -111,13 +111,12 @@
 <div id="opModal" class="modal-overlay">
     <div id="opModalBackdrop" class="modal-backdrop"></div>
     <div class="modal-box">
-        <h2>Nova Operação</h2>
+        <h2 id="opModalTitle">Nova Operação</h2>
         <div class="modal-form">
-            <label>Tipo</label>
-            <select id="opType">
-                <option value="buy">Compra</option>
-                <option value="sell">Venda</option>
-            </select>
+            <button type="button" id="opType" class="op-toggle toggle-buy" data-type="buy">
+                <span class="op-toggle-text">Compra</span>
+                <span class="op-toggle-knob"></span>
+            </button>
 
             <label>Valor (R$)</label>
             <input type="number" id="opBrl" placeholder="Valor (R$)" step="0.01">
@@ -126,7 +125,7 @@
             <input type="number" id="opAave" placeholder="Quantidade (AAVE)" step="0.00000001">
 
             <label>Data da operação</label>
-            <input type="datetime-local" id="opDate">
+            <input type="date" id="opDate">
         </div>
         <div class="modal-actions">
             <button id="btnCancelModal" class="btn-secondary">Cancelar</button>
