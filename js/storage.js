@@ -3,12 +3,14 @@
 
 const STORAGE_KEY = 'transactions';
 
-// Valida que o dado é um array de operações no formato { type, aave, brl }.
-// Os campos id/date são opcionais (registros legados podem não tê-los).
+// Valida que o dado é um array de operações no formato novo
+// { type, assetId, assetQuantity, brl }. id/dateTransaction são preenchidos
+// pela normalização se faltarem.
 function isValidTransactions(data) {
     return Array.isArray(data) && data.every(tx =>
         tx && (tx.type === 'buy' || tx.type === 'sell') &&
-        typeof tx.aave === 'number' && isFinite(tx.aave) &&
+        typeof tx.assetId === 'number' &&
+        typeof tx.assetQuantity === 'number' && isFinite(tx.assetQuantity) &&
         typeof tx.brl === 'number' && isFinite(tx.brl)
     );
 }
@@ -43,10 +45,9 @@ function recalcNextTransactionId(txs) {
     return next;
 }
 
-// Garante que toda transação tenha `id` (sequencial) e a propriedade
-// `dateTransaction` (legado -> null). Ajusta o contador de IDs e deixa o
-// array ordenado por data.
-function migrateTransactions(txs) {
+// Garante que toda transação tenha `id` e a propriedade `dateTransaction`,
+// ajusta o contador de IDs e deixa o array ordenado por data.
+function normalizeTransactions(txs) {
     let changed = false;
 
     // Ajusta o contador para acima do maior id já existente.
@@ -62,13 +63,8 @@ function migrateTransactions(txs) {
             tx.id = nextId();
             changed = true;
         }
-        // Compatibilidade: renomeia um eventual campo antigo `date`.
         if (!('dateTransaction' in tx)) {
-            tx.dateTransaction = ('date' in tx) ? tx.date : null;
-            changed = true;
-        }
-        if ('date' in tx) {
-            delete tx.date;
+            tx.dateTransaction = null;
             changed = true;
         }
     });
@@ -81,8 +77,9 @@ function migrateTransactions(txs) {
     return sorted;
 }
 
-// Carrega as operações do LocalStorage e aplica a migração. Se não houver nada
-// salvo (ou o conteúdo for inválido), começa em branco — sem valores iniciais.
+// Carrega TODAS as operações do LocalStorage (de todos os ativos) e normaliza.
+// Se não houver nada salvo (ou o conteúdo for inválido/formato antigo), começa
+// em branco — o sistema aceita apenas o formato novo.
 function loadTransactions() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -91,7 +88,7 @@ function loadTransactions() {
     try {
         const parsed = JSON.parse(raw);
         if (isValidTransactions(parsed)) {
-            return migrateTransactions(parsed);
+            return normalizeTransactions(parsed);
         }
         console.warn('Dados de transações inválidos no LocalStorage; começando em branco.');
     } catch (e) {
@@ -150,36 +147,20 @@ function restoreDataMap(map) {
     });
 }
 
-// Importa um arquivo de backup e restaura o LocalStorage. Aceita:
-//  - o formato novo (objeto { chave: conteúdo });
-//  - o envelope antigo ({ app, version, data: {...} });
-//  - o formato bem antigo (array puro de transações).
-// Em erro, mantém os dados atuais e avisa. onDone() recarrega a UI.
+// Importa um arquivo de backup (formato novo: objeto { chave: conteúdo }) e
+// restaura o LocalStorage. Em erro, mantém os dados atuais e avisa.
+// onDone() recarrega a UI.
 function importBackup(file, onDone) {
     const reader = new FileReader();
     reader.onload = () => {
         try {
             const parsed = JSON.parse(reader.result);
-
-            // Formato bem antigo: array puro de transações.
-            if (isValidTransactions(parsed)) {
-                saveTransactions(parsed);
-                if (typeof onDone === 'function') onDone();
-                alert('Backup (formato antigo) restaurado: ' + parsed.length + ' operações.');
-                return;
-            }
-
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                // Envelope antigo tem { data: {...} } + app/version; caso contrário,
-                // o próprio objeto já é o mapa de dados (formato novo).
-                const isEnvelope = parsed.data && typeof parsed.data === 'object'
-                    && (parsed.app || parsed.version || parsed.exportedAt);
-                restoreDataMap(isEnvelope ? parsed.data : parsed);
+                restoreDataMap(parsed);
                 if (typeof onDone === 'function') onDone();
                 alert('Backup restaurado com sucesso.');
                 return;
             }
-
             alert('Arquivo de backup inválido.');
         } catch (e) {
             alert('Não foi possível ler o arquivo de backup: ' + e.message);

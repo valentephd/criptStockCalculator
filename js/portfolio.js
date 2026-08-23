@@ -1,7 +1,7 @@
-// Método de cálculo do portfólio AAVE.
-// IMPORTANTE: esta lógica é o coração da ferramenta e não deve ser alterada.
-// Usa identificação específica de lotes: ao vender, consome primeiro os lotes
-// de menor preço unitário para calcular o custo base e o lucro realizado.
+// Método de cálculo do portfólio (opera sobre o global `transactions`, que é a
+// visão do ativo ativo). IMPORTANTE: esta lógica é o coração da ferramenta e
+// não deve ser alterada. Usa identificação específica de lotes: ao vender,
+// consome primeiro os lotes de menor preço unitário para o custo base e o lucro.
 
 const formatCurrency = (value) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -19,19 +19,19 @@ function processPortfolio() {
     const currentPrice = parseFloat(document.getElementById('currentPriceInput').value) || 0;
 
     transactions.forEach((tx, index) => {
-        const unitPrice = tx.brl / tx.aave;
+        const unitPrice = tx.brl / tx.assetQuantity;
         let realizedProfit = 0;
         let status = 'open';
 
         if (tx.type === 'buy') {
             lots.push({
                 id: index + 1,
-                originalAave: tx.aave,
-                availableAave: tx.aave,
+                originalAave: tx.assetQuantity,
+                availableAave: tx.assetQuantity,
                 unitPrice: unitPrice
             });
         } else if (tx.type === 'sell') {
-            let remainingToSell = tx.aave;
+            let remainingToSell = tx.assetQuantity;
             let costBasis = 0;
 
             // Specific Identification: Sort lots by cheapest unit price
@@ -65,7 +65,7 @@ function processPortfolio() {
         tableData.push({
             id: index + 1,
             type: tx.type === 'buy' ? 'Compra' : 'Venda',
-            aave: tx.aave,
+            assetQuantity: tx.assetQuantity,
             brl: tx.brl,
             unitPrice: unitPrice,
             realizedProfit: tx.type === 'sell' ? realizedProfit : null,

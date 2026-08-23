@@ -55,6 +55,11 @@ body {
     min-width: 0;
     min-height: 0; /* habilita a rolagem interna do histórico */
 }
+/* Início e Cadastro rolam a página inteira (o painel de ativo rola por dentro) */
+body[data-page="home"] .content,
+body[data-page="assets"] .content {
+    overflow-y: auto;
+}
 .card {
     background-color: var(--card-bg);
     border: 2px solid var(--border);
@@ -296,6 +301,49 @@ th {
     margin-bottom: 20px;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--border);
+}
+
+/* Navegação do menu */
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.nav-link {
+    display: block;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: bold;
+}
+.nav-link:hover {
+    background-color: var(--panel-bg);
+}
+.nav-link.active {
+    background-color: var(--accent);
+    color: #ffffff;
+}
+
+/* Tela de boas-vindas */
+.welcome h2 {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.welcome p {
+    color: var(--text-dim);
+    line-height: 1.6;
+}
+
+/* Link em texto / "Abrir" na lista de ativos */
+.link, .btn-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: bold;
+}
+.link:hover, .btn-link:hover {
+    text-decoration: underline;
 }
 .sidebar-section {
     margin-bottom: 20px;

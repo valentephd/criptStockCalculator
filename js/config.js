@@ -2,7 +2,13 @@
 // Guarda o estado do menu lateral e o contador de IDs das transações.
 
 const CONFIG_KEY = 'systemConfigs';
-const DEFAULT_CONFIG = { menuExpanded: false, nextTransactionId: 1 };
+const DEFAULT_CONFIG = {
+    menuExpanded: false,
+    nextTransactionId: 1,
+    nextAssetId: 1,
+    activeAssetId: null,
+    priceRefreshMinutes: 10
+};
 
 // Lê o objeto de configurações, mesclando com os defaults.
 function loadSystemConfigs() {

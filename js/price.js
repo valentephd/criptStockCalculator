@@ -1,40 +1,56 @@
-// Busca do preço atual do AAVE em BRL (CoinGecko) e persistência do último
-// preço conhecido no LocalStorage, junto com a data/hora da atualização.
+// Busca do preço atual de um ativo em BRL (CoinGecko) e persistência do último
+// preço conhecido por ativo (chave "lastPrice", uma lista por assetId).
 
 const PRICE_KEY = 'lastPrice';
 const PRICE_REFRESH_MS = 10 * 60 * 1000; // 10 minutos
-const COINGECKO_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=aave&vs_currencies=brl';
 
-// Lê o último preço conhecido do LocalStorage: { price, updatedAt } ou null.
-function loadLastPrice() {
-    const raw = localStorage.getItem(PRICE_KEY);
-    if (!raw) return null;
-    try {
-        const p = JSON.parse(raw);
-        if (p && typeof p.price === 'number' && isFinite(p.price) && p.updatedAt) {
-            return p;
-        }
-    } catch (e) {
-        console.warn('Falha ao ler o último preço do LocalStorage:', e);
-    }
-    return null;
+// Monta a URL da CoinGecko para um identificador de mercado (marketId).
+function coingeckoUrl(marketId) {
+    return 'https://api.coingecko.com/api/v3/simple/price?ids=' +
+        encodeURIComponent(marketId) + '&vs_currencies=brl';
 }
 
-// Salva o preço com carimbo de data/hora atual e devolve o registro salvo.
-function saveLastPrice(price) {
-    const record = { price: price, updatedAt: new Date().toISOString() };
-    localStorage.setItem(PRICE_KEY, JSON.stringify(record));
+// Lê a lista de últimos preços (por ativo). Vazia se ausente/ inválida.
+function loadLastPriceList() {
+    const raw = localStorage.getItem(PRICE_KEY);
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+        console.warn('Falha ao ler lastPrice do LocalStorage:', e);
+    }
+    return [];
+}
+
+// Último preço conhecido de um ativo: { assetId, price, updatedAt } ou null.
+function loadLastPrice(assetId) {
+    const rec = loadLastPriceList().find(p =>
+        p && p.assetId === assetId &&
+        typeof p.price === 'number' && isFinite(p.price) && p.updatedAt
+    );
+    return rec || null;
+}
+
+// Salva/atualiza (upsert) o preço de um ativo e devolve o registro salvo.
+function saveLastPrice(assetId, price) {
+    const list = loadLastPriceList();
+    const record = { assetId: assetId, price: price, updatedAt: new Date().toISOString() };
+    const i = list.findIndex(p => p && p.assetId === assetId);
+    if (i >= 0) list[i] = record; else list.push(record);
+    localStorage.setItem(PRICE_KEY, JSON.stringify(list));
     return record;
 }
 
-// Consulta o preço atual do AAVE em BRL. Lança erro se a resposta for inesperada.
-async function fetchAavePriceBRL() {
-    const res = await fetch(COINGECKO_URL, { headers: { 'Accept': 'application/json' } });
+// Consulta o preço atual (BRL) de um ativo pelo seu marketId.
+async function fetchAssetPriceBRL(marketId) {
+    const res = await fetch(coingeckoUrl(marketId), { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
         throw new Error('HTTP ' + res.status);
     }
     const data = await res.json();
-    const price = data && data.aave && data.aave.brl;
+    const entry = data && data[marketId];
+    const price = entry && entry.brl;
     if (typeof price !== 'number' || !isFinite(price)) {
         throw new Error('Resposta inesperada da API');
     }

@@ -1,7 +1,16 @@
-// Camada de UI: dashboard, modal de nova operação, menu lateral, preço e
-// backup/restore. O motor de cálculo (portfolio.js) permanece intocado.
+// Página do ativo (asset.html?id=): dashboard, modal de operação, cotação.
+// O menu, backup/restore e toggle são responsabilidade do shell.js.
+// O motor (portfolio.js) processa o global `transactions` = visão do ativo da rota.
 
-let transactions = loadTransactions();
+let allTransactions = loadTransactions();   // completo (todos os ativos)
+let transactions = [];                       // visão do ativo da rota (motor + tabela)
+let assetSymbol = '';                        // símbolo do ativo (rótulos dinâmicos)
+
+// Recalcula a visão do ativo ativo a partir da lista completa.
+function setActiveView() {
+    const activeId = getConfig('activeAssetId', null);
+    transactions = allTransactions.filter(t => t.assetId === activeId);
+}
 
 // Formata a data/hora de uma string ISO no padrão pt-BR (usado no preço).
 function formatDateTime(iso) {
@@ -14,16 +23,14 @@ function toLocalDateValue(d) {
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 }
 
-// Exibe a data da operação como dd/mm/aaaa, sem sofrer deslocamento de fuso
-// (usa a parte YYYY-MM-DD diretamente, seja ela date-only ou ISO completa).
+// Exibe a data da operação como dd/mm/aaaa, sem sofrer deslocamento de fuso.
 function formatDate(value) {
     const parts = String(value).slice(0, 10).split('-');
     if (parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
     return String(value);
 }
 
-// Máscara estilo caixa eletrônico: só dígitos, preenchendo da direita, sempre
-// com `decimals` casas e separador de milhar pt-BR.
+// Máscara caixa eletrônico: só dígitos, preenchendo da direita, casas fixas.
 function maskAmount(rawValue, decimals) {
     const digits = String(rawValue).replace(/\D/g, '');
     if (!digits) return '';
@@ -48,17 +55,14 @@ function formatAmount(num, decimals) {
     });
 }
 
-// Monta uma "tag" (pílula) de resultado, colorida pelo sinal, com um rótulo
-// curto (ex.: "Realizado" / "Potencial").
+// Monta uma "tag" (pílula) de resultado, colorida pelo sinal, com um rótulo curto.
 function resultTag(label, value, kind) {
     const cls = value >= 0 ? 'positive' : 'negative';
     const sign = value > 0 ? '+' : '';
     return `<span class="tag ${kind} ${cls}"><span class="tag-label">${label}</span>${sign}${formatCurrency(value)}</span>`;
 }
 
-// Entrada livre (AAVE): enquanto digita, permite só dígitos e UMA vírgula, com
-// no máximo 8 casas decimais. A formatação completa (milhar + 8 casas) acontece
-// ao sair do campo (blur).
+// Entrada livre: dígitos e UMA vírgula, com no máximo `decimals` casas.
 function sanitizeDecimalInput(value, decimals) {
     let v = String(value).replace(/[^\d,]/g, '');
     const i = v.indexOf(',');
@@ -73,9 +77,8 @@ function sanitizeDecimalInput(value, decimals) {
 function updateDashboard() {
     const data = processPortfolio();
 
-    // Update Summary Cards
     document.getElementById('valTotalInvested').innerText = formatCurrency(data.totalInvested);
-    document.getElementById('valTotalCoins').innerText = formatAmount(data.totalCoins, 8) + ' AAVE';
+    document.getElementById('valTotalCoins').innerText = formatAmount(data.totalCoins, 8) + ' ' + assetSymbol;
     document.getElementById('valAvgPrice').innerText = formatCurrency(data.avgPrice);
     document.getElementById('valMarketValue').innerText = formatCurrency(data.marketValue);
 
@@ -90,8 +93,6 @@ function updateDashboard() {
     elBalance.innerText = formatCurrency(Math.abs(balance)) + ' ' + arrow;
     elBalance.className = 'summary-value ' + (balance >= 0 ? 'positive' : 'negative');
 
-    // Monta as linhas: # = posição cronológica (array por data asc), ID e Data
-    // vêm da própria transação (mesma ordem de data.tableData).
     const rows = data.tableData.map((row, i) => ({
         seq: i + 1,
         realId: transactions[i] ? transactions[i].id : row.id,
@@ -108,13 +109,13 @@ function updateDashboard() {
     rows.forEach(row => {
         const tr = document.createElement('tr');
 
-        // Coluna unificada "Resultado": venda mostra o Lucro Realizado; compra
-        // mostra o Potencial da operação (preço atual × qtd − valor gasto).
+        // Coluna "Resultado": venda mostra o Lucro Realizado; compra mostra o
+        // Potencial da operação (preço atual × qtd − valor gasto).
         let resultHtml = '—';
         if (row.type === 'Venda' && row.realizedProfit !== null) {
             resultHtml = resultTag('Realizado', row.realizedProfit, 'realizado');
         } else if (row.type === 'Compra' && row.status === 'open') {
-            resultHtml = resultTag('Potencial', row.potential * row.aave, 'potencial');
+            resultHtml = resultTag('Potencial', row.potential * row.assetQuantity, 'potencial');
         }
 
         const dateHtml = row.date ? formatDate(row.date) : '—';
@@ -124,7 +125,7 @@ function updateDashboard() {
             <td>${row.realId}</td>
             <td>${dateHtml}</td>
             <td>${row.type}</td>
-            <td>${formatAmount(row.aave, 8)}</td>
+            <td>${formatAmount(row.assetQuantity, 8)}</td>
             <td>${formatCurrency(row.brl)}</td>
             <td>${formatCurrency(row.unitPrice)}</td>
             <td>${resultHtml}</td>
@@ -139,64 +140,65 @@ function updateDashboard() {
 
 // Remove a transação de id informado, após confirmação do usuário.
 function removeTransaction(id) {
-    const tx = transactions.find(t => t.id === id);
+    const tx = allTransactions.find(t => t.id === id);
     if (!tx) return;
 
     openConfirm('Deseja realmente remover a operação ID ' + id + '?', () => {
-        transactions = transactions.filter(t => t.id !== id);
-        saveTransactions(transactions);
-        // Recalcula o próximo ID considerando maior ID e tamanho do array.
-        recalcNextTransactionId(transactions);
+        allTransactions = allTransactions.filter(t => t.id !== id);
+        saveTransactions(allTransactions);
+        recalcNextTransactionId(allTransactions);
+        setActiveView();
         updateDashboard();
     });
 }
 
-// Salva a operação do modal: se estiver editando, atualiza a transação de
-// mesmo id; caso contrário, cria uma nova. Depois reordena por data.
+// Salva a operação do modal: edição (mesmo id) ou nova. Depois reordena por data.
 function addTransaction() {
     const type = document.getElementById('opType').dataset.type;
     const brl = unmaskAmount(document.getElementById('opBrl').value);
-    const aave = unmaskAmount(document.getElementById('opAave').value);
+    const assetQuantity = unmaskAmount(document.getElementById('opAave').value);
     const dateInput = document.getElementById('opDate').value;
 
-    if (!brl || !aave || brl <= 0 || aave <= 0) {
+    if (!brl || !assetQuantity || brl <= 0 || assetQuantity <= 0) {
         alert('Por favor, insira valores válidos.');
         return;
     }
 
-    // Guarda a data apenas como "YYYY-MM-DD" (sem hora).
+    const activeId = getConfig('activeAssetId', null);
+    if (activeId === null || activeId === undefined) {
+        alert('Nenhum ativo selecionado.');
+        return;
+    }
+
     const dateTransaction = dateInput || toLocalDateValue(new Date());
 
     if (editingId !== null) {
-        // Edição: mantém o mesmo id, atualiza os demais campos.
-        const tx = transactions.find(t => t.id === editingId);
+        const tx = allTransactions.find(t => t.id === editingId);
         if (tx) {
             tx.type = type;
             tx.brl = brl;
-            tx.aave = aave;
+            tx.assetQuantity = assetQuantity;
             tx.dateTransaction = dateTransaction;
         }
-        transactions = sortTransactionsByDate(transactions);
-        saveTransactions(transactions);
+        allTransactions = sortTransactionsByDate(allTransactions);
+        saveTransactions(allTransactions);
     } else {
-        // Nova operação.
-        const newId = computeNextTransactionId(transactions);
-        transactions.push({ id: newId, dateTransaction, type, brl, aave });
-        transactions = sortTransactionsByDate(transactions);
-        saveTransactions(transactions);
-        recalcNextTransactionId(transactions);
+        const newId = computeNextTransactionId(allTransactions);
+        allTransactions.push({ id: newId, assetId: activeId, dateTransaction, type, brl, assetQuantity });
+        allTransactions = sortTransactionsByDate(allTransactions);
+        saveTransactions(allTransactions);
+        recalcNextTransactionId(allTransactions);
     }
 
     closeModal();
+    setActiveView();
     updateDashboard();
 }
 
 // ----- Modal de nova/edição de operação -----
 
-// id da transação em edição (null = nova operação).
 let editingId = null;
 
-// Abre o modal. Sem argumento = nova operação; com uma transação = edição.
 function openModal(tx) {
     const btnEl = document.getElementById('btnAdd');
 
@@ -205,7 +207,7 @@ function openModal(tx) {
         btnEl.textContent = 'Salvar';
         setOpType(tx.type);
         document.getElementById('opBrl').value = formatAmount(tx.brl, 2);
-        document.getElementById('opAave').value = formatAmount(tx.aave, 8);
+        document.getElementById('opAave').value = formatAmount(tx.assetQuantity, 8);
         document.getElementById('opDate').value = tx.dateTransaction
             ? String(tx.dateTransaction).slice(0, 10)
             : toLocalDateValue(new Date());
@@ -220,14 +222,12 @@ function openModal(tx) {
     document.getElementById('opModal').classList.add('open');
 }
 
-// Abre o modal em modo edição para a transação de id informado.
 function editTransaction(id) {
-    const tx = transactions.find(t => t.id === id);
+    const tx = allTransactions.find(t => t.id === id);
     if (tx) openModal(tx);
 }
 
-// Atualiza o título do modal com o modo e o tipo atuais
-// (ex.: "Nova Operação - Compra" / "Editar Operação - Venda").
+// Atualiza o título do modal com o modo e o tipo atuais.
 function updateModalTitle() {
     const base = editingId !== null ? 'Editar Operação' : 'Nova Operação';
     const type = document.getElementById('opType').dataset.type;
@@ -235,8 +235,7 @@ function updateModalTitle() {
     document.getElementById('opModalTitle').textContent = base + ' - ' + label;
 }
 
-// Define o tipo no toggle deslizante (texto, cor e valor em data-type) e
-// reflete a mudança no título do modal.
+// Define o tipo no toggle deslizante e reflete no título do modal.
 function setOpType(type) {
     const el = document.getElementById('opType');
     el.dataset.type = type;
@@ -246,7 +245,6 @@ function setOpType(type) {
     updateModalTitle();
 }
 
-// Alterna entre Compra e Venda.
 function toggleOpType() {
     const current = document.getElementById('opType').dataset.type;
     setOpType(current === 'buy' ? 'sell' : 'buy');
@@ -271,18 +269,6 @@ function closeConfirm() {
     confirmCallback = null;
 }
 
-// ----- Menu lateral -----
-
-function applyMenuState(expanded) {
-    document.getElementById('app').classList.toggle('menu-open', expanded);
-}
-
-function toggleMenu() {
-    const expanded = !document.getElementById('app').classList.contains('menu-open');
-    applyMenuState(expanded);
-    setConfig('menuExpanded', expanded);
-}
-
 // ----- Preço -----
 
 function setPriceStatus(text, cls) {
@@ -292,15 +278,20 @@ function setPriceStatus(text, cls) {
 }
 
 async function refreshPrice() {
+    const asset = getActiveAsset();
+    if (!asset) {
+        setPriceStatus('Nenhum ativo selecionado.');
+        return;
+    }
     setPriceStatus('Atualizando preço…');
     try {
-        const price = await fetchAavePriceBRL();
-        const record = saveLastPrice(price);
+        const price = await fetchAssetPriceBRL(asset.marketId);
+        const record = saveLastPrice(asset.id, price);
         document.getElementById('currentPriceInput').value = price;
         updateDashboard();
         setPriceStatus('Atualizado em ' + formatDateTime(record.updatedAt), 'ok');
     } catch (e) {
-        const last = loadLastPrice();
+        const last = loadLastPrice(asset.id);
         if (last) {
             setPriceStatus('Falha ao atualizar — usando preço de ' + formatDateTime(last.updatedAt), 'error');
         } else {
@@ -312,9 +303,22 @@ async function refreshPrice() {
 // ----- Inicialização e eventos -----
 
 window.addEventListener('load', () => {
-    // Menu lateral
-    document.getElementById('btnMenuToggle').addEventListener('click', toggleMenu);
-    applyMenuState(getConfig('menuExpanded', false));
+    // Resolve o ativo da rota (?id=). Sem ativo válido -> aviso e para.
+    const routeAssetId = Number(new URLSearchParams(location.search).get('id'));
+    const asset = getAssetById(routeAssetId);
+    if (!asset) {
+        document.getElementById('assetNotFound').style.display = '';
+        document.getElementById('assetPanel').style.display = 'none';
+        document.getElementById('btnOpenModal').style.display = 'none';
+        return;
+    }
+
+    setConfig('activeAssetId', routeAssetId); // fonte da verdade = URL (persiste "último visto")
+    assetSymbol = asset.symbol;
+    document.getElementById('assetTitle').textContent = asset.symbol;
+    document.getElementById('lblTotalCoins').textContent = 'Total ' + asset.symbol;
+    document.getElementById('thQtd').textContent = 'Qtd (' + asset.symbol + ')';
+    setActiveView();
 
     // Editar/Remover linha do histórico (listener delegado)
     document.querySelector('#txTable tbody').addEventListener('click', (e) => {
@@ -329,7 +333,7 @@ window.addEventListener('load', () => {
         }
     });
 
-    // Cotação
+    // Cotação (input/status/botão vêm do menu injetado pelo shell)
     document.getElementById('currentPriceInput').addEventListener('input', updateDashboard);
     document.getElementById('btnRefreshPrice').addEventListener('click', refreshPrice);
 
@@ -341,7 +345,7 @@ window.addEventListener('load', () => {
     const opBrlEl = document.getElementById('opBrl');
     opBrlEl.addEventListener('input', () => { opBrlEl.value = maskAmount(opBrlEl.value, 2); });
 
-    // Quantidade (AAVE): entrada livre com vírgula; completa 8 casas ao sair.
+    // Quantidade: entrada livre com vírgula; completa 8 casas ao sair.
     const opAaveEl = document.getElementById('opAave');
     opAaveEl.addEventListener('input', () => { opAaveEl.value = sanitizeDecimalInput(opAaveEl.value, 8); });
     opAaveEl.addEventListener('blur', () => {
@@ -366,28 +370,8 @@ window.addEventListener('load', () => {
         if (e.key === 'Escape') { closeModal(); closeConfirm(); }
     });
 
-    // Backup / Restore (dump completo do LocalStorage)
-    document.getElementById('btnBackup').addEventListener('click', () => exportBackup());
-    const restoreInput = document.getElementById('restoreInput');
-    document.getElementById('btnRestore').addEventListener('click', () => restoreInput.click());
-    restoreInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        importBackup(file, () => {
-            transactions = loadTransactions();
-            applyMenuState(getConfig('menuExpanded', false));
-            const restored = loadLastPrice();
-            if (restored) {
-                document.getElementById('currentPriceInput').value = restored.price;
-                setPriceStatus('Último preço de ' + formatDateTime(restored.updatedAt));
-            }
-            updateDashboard();
-        });
-        e.target.value = '';
-    });
-
-    // Preço: começa com o último preço conhecido (mesmo offline), depois atualiza.
-    const last = loadLastPrice();
+    // Preço: começa com o último preço conhecido do ativo (mesmo offline).
+    const last = loadLastPrice(asset.id);
     if (last) {
         document.getElementById('currentPriceInput').value = last.price;
         setPriceStatus('Último preço de ' + formatDateTime(last.updatedAt));
