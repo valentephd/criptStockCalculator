@@ -22,12 +22,60 @@ function formatDate(value) {
     return String(value);
 }
 
+// Máscara estilo caixa eletrônico: só dígitos, preenchendo da direita, sempre
+// com `decimals` casas e separador de milhar pt-BR.
+function maskAmount(rawValue, decimals) {
+    const digits = String(rawValue).replace(/\D/g, '');
+    if (!digits) return '';
+    const num = parseInt(digits, 10) / Math.pow(10, decimals);
+    return num.toLocaleString('pt-BR', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+}
+
+// Converte o texto mascarado ("1.234,55") de volta em número (1234.55).
+function unmaskAmount(str) {
+    const n = parseFloat(String(str).replace(/\./g, '').replace(',', '.'));
+    return isFinite(n) ? n : NaN;
+}
+
+// Formata um número conhecido para o campo mascarado (ex.: ao editar).
+function formatAmount(num, decimals) {
+    return Number(num).toLocaleString('pt-BR', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+}
+
+// Monta uma "tag" (pílula) de resultado, colorida pelo sinal, com um rótulo
+// curto (ex.: "Realizado" / "Potencial").
+function resultTag(label, value, kind) {
+    const cls = value >= 0 ? 'positive' : 'negative';
+    const sign = value > 0 ? '+' : '';
+    return `<span class="tag ${kind} ${cls}"><span class="tag-label">${label}</span>${sign}${formatCurrency(value)}</span>`;
+}
+
+// Entrada livre (AAVE): enquanto digita, permite só dígitos e UMA vírgula, com
+// no máximo 8 casas decimais. A formatação completa (milhar + 8 casas) acontece
+// ao sair do campo (blur).
+function sanitizeDecimalInput(value, decimals) {
+    let v = String(value).replace(/[^\d,]/g, '');
+    const i = v.indexOf(',');
+    if (i !== -1) {
+        const intPart = v.slice(0, i);
+        const decPart = v.slice(i + 1).replace(/,/g, '').slice(0, decimals);
+        v = intPart + ',' + decPart;
+    }
+    return v;
+}
+
 function updateDashboard() {
     const data = processPortfolio();
 
     // Update Summary Cards
     document.getElementById('valTotalInvested').innerText = formatCurrency(data.totalInvested);
-    document.getElementById('valTotalCoins').innerText = formatCrypto(data.totalCoins).replace('.', ',') + ' AAVE';
+    document.getElementById('valTotalCoins').innerText = formatAmount(data.totalCoins, 8) + ' AAVE';
     document.getElementById('valAvgPrice').innerText = formatCurrency(data.avgPrice);
     document.getElementById('valMarketValue').innerText = formatCurrency(data.marketValue);
 
@@ -60,18 +108,13 @@ function updateDashboard() {
     rows.forEach(row => {
         const tr = document.createElement('tr');
 
-        let profitHtml = '-';
-        if (row.realizedProfit !== null) {
-            const pClass = row.realizedProfit >= 0 ? 'positive' : 'negative';
-            profitHtml = `<span class="${pClass}">${row.realizedProfit > 0 ? '+' : ''}${formatCurrency(row.realizedProfit)}</span>`;
-        }
-
-        let potentialHtml = '- (Fechada)';
-        if (row.status === 'open' && row.type === 'Compra') {
-            const pClass = row.potential >= 0 ? 'positive' : 'negative';
-            potentialHtml = `<span class="${pClass}">${row.potential > 0 ? '+' : ''}${formatCurrency(row.potential)}</span>`;
-        } else if (row.type === 'Venda') {
-            potentialHtml = '-';
+        // Coluna unificada "Resultado": venda mostra o Lucro Realizado; compra
+        // mostra o Potencial da operação (preço atual × qtd − valor gasto).
+        let resultHtml = '—';
+        if (row.type === 'Venda' && row.realizedProfit !== null) {
+            resultHtml = resultTag('Realizado', row.realizedProfit, 'realizado');
+        } else if (row.type === 'Compra' && row.status === 'open') {
+            resultHtml = resultTag('Potencial', row.potential * row.aave, 'potencial');
         }
 
         const dateHtml = row.date ? formatDate(row.date) : '—';
@@ -81,11 +124,10 @@ function updateDashboard() {
             <td>${row.realId}</td>
             <td>${dateHtml}</td>
             <td>${row.type}</td>
-            <td>${formatCrypto(row.aave)}</td>
+            <td>${formatAmount(row.aave, 8)}</td>
             <td>${formatCurrency(row.brl)}</td>
             <td>${formatCurrency(row.unitPrice)}</td>
-            <td>${profitHtml}</td>
-            <td>${potentialHtml}</td>
+            <td>${resultHtml}</td>
             <td>
                 <button class="btn-edit" data-edit="${row.realId}" title="Editar">✏️</button>
                 <button class="btn-remove" data-remove="${row.realId}" title="Remover">✕</button>
@@ -113,8 +155,8 @@ function removeTransaction(id) {
 // mesmo id; caso contrário, cria uma nova. Depois reordena por data.
 function addTransaction() {
     const type = document.getElementById('opType').dataset.type;
-    const brl = parseFloat(document.getElementById('opBrl').value);
-    const aave = parseFloat(document.getElementById('opAave').value);
+    const brl = unmaskAmount(document.getElementById('opBrl').value);
+    const aave = unmaskAmount(document.getElementById('opAave').value);
     const dateInput = document.getElementById('opDate').value;
 
     if (!brl || !aave || brl <= 0 || aave <= 0) {
@@ -162,8 +204,8 @@ function openModal(tx) {
         editingId = tx.id;
         btnEl.textContent = 'Salvar';
         setOpType(tx.type);
-        document.getElementById('opBrl').value = tx.brl;
-        document.getElementById('opAave').value = tx.aave;
+        document.getElementById('opBrl').value = formatAmount(tx.brl, 2);
+        document.getElementById('opAave').value = formatAmount(tx.aave, 8);
         document.getElementById('opDate').value = tx.dateTransaction
             ? String(tx.dateTransaction).slice(0, 10)
             : toLocalDateValue(new Date());
@@ -294,6 +336,19 @@ window.addEventListener('load', () => {
     // Modal de nova operação
     document.getElementById('btnOpenModal').addEventListener('click', () => openModal());
     document.getElementById('opType').addEventListener('click', toggleOpType);
+
+    // Valor (R$): máscara caixa eletrônico (2 casas, preenche da direita).
+    const opBrlEl = document.getElementById('opBrl');
+    opBrlEl.addEventListener('input', () => { opBrlEl.value = maskAmount(opBrlEl.value, 2); });
+
+    // Quantidade (AAVE): entrada livre com vírgula; completa 8 casas ao sair.
+    const opAaveEl = document.getElementById('opAave');
+    opAaveEl.addEventListener('input', () => { opAaveEl.value = sanitizeDecimalInput(opAaveEl.value, 8); });
+    opAaveEl.addEventListener('blur', () => {
+        if (!opAaveEl.value) return;
+        const num = unmaskAmount(opAaveEl.value);
+        opAaveEl.value = isFinite(num) ? formatAmount(num, 8) : '';
+    });
     document.getElementById('btnAdd').addEventListener('click', addTransaction);
     document.getElementById('btnCancelModal').addEventListener('click', closeModal);
     document.getElementById('opModalBackdrop').addEventListener('click', closeModal);

@@ -146,6 +146,42 @@ th {
 .positive { color: var(--positive); }
 .negative { color: var(--negative); }
 
+/* Tag (pílula) de resultado no histórico */
+.tag {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.85em;
+    font-weight: bold;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+}
+.tag .tag-label {
+    font-weight: normal;
+    font-size: 0.82em;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-dim);
+}
+.tag.positive {
+    color: var(--positive);
+    background-color: rgba(75, 191, 138, 0.12);
+    border-color: rgba(75, 191, 138, 0.35);
+}
+.tag.negative {
+    color: var(--negative);
+    background-color: rgba(224, 117, 127, 0.12);
+    border-color: rgba(224, 117, 127, 0.35);
+}
+/* Potencial positivo em azul (ganho ainda não realizado) */
+.tag.potencial.positive {
+    color: var(--accent);
+    background-color: rgba(91, 141, 239, 0.12);
+    border-color: rgba(91, 141, 239, 0.35);
+}
+
 /* Barra de backup / restauração */
 .backup-bar {
     display: flex;
