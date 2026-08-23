@@ -50,14 +50,6 @@ function unmaskAmount(str) {
     return isFinite(n) ? n : NaN;
 }
 
-// Formata um número conhecido para o campo mascarado (ex.: ao editar).
-function formatAmount(num, decimals) {
-    return Number(num).toLocaleString('pt-BR', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-    });
-}
-
 // Monta uma "tag" (pílula) de resultado, colorida pelo sinal, com um rótulo curto.
 function resultTag(label, value, kind) {
     const cls = value >= 0 ? 'positive' : 'negative';
@@ -292,7 +284,7 @@ async function refreshPrice() {
     try {
         const price = await fetchAssetPriceBRL(asset.marketId);
         const record = saveLastPrice(asset.id, price);
-        document.getElementById('currentPriceInput').value = price;
+        document.getElementById('currentPriceInput').value = formatPrice(price);
         updateDashboard();
         setPriceStatus('Atualizado em ' + formatDateTime(record.updatedAt), 'ok');
     } catch (e) {
@@ -342,7 +334,12 @@ window.addEventListener('load', () => {
     });
 
     // Cotação (input/status/botão vêm do menu injetado pelo shell)
-    document.getElementById('currentPriceInput').addEventListener('input', updateDashboard);
+    const priceEl = document.getElementById('currentPriceInput');
+    priceEl.addEventListener('input', updateDashboard);
+    priceEl.addEventListener('blur', () => {
+        if (priceEl.value.trim() === '') return;
+        priceEl.value = formatPrice(parsePrice(priceEl.value));
+    });
     document.getElementById('btnRefreshPrice').addEventListener('click', refreshPrice);
 
     // Modal de nova operação
@@ -381,7 +378,7 @@ window.addEventListener('load', () => {
     // Preço: começa com o último preço conhecido do ativo (mesmo offline).
     const last = loadLastPrice(asset.id);
     if (last) {
-        document.getElementById('currentPriceInput').value = last.price;
+        document.getElementById('currentPriceInput').value = formatPrice(last.price);
         setPriceStatus('Último preço de ' + formatDateTime(last.updatedAt));
     }
 

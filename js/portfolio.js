@@ -16,7 +16,7 @@ function processPortfolio() {
     let totalRealizedProfit = 0;
     let tableData = [];
 
-    const currentPrice = parseFloat(document.getElementById('currentPriceInput').value) || 0;
+    const currentPrice = parsePrice(document.getElementById('currentPriceInput').value);
 
     transactions.forEach((tx, index) => {
         const unitPrice = tx.brl / tx.assetQuantity;

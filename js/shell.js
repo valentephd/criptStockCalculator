@@ -27,7 +27,7 @@
             '<h2 class="sidebar-title">Menu</h2>' +
             '<nav class="sidebar-nav">' +
                 '<a href="index.html" class="nav-link" data-nav="home">Início</a>' +
-                '<a href="assets.html" class="nav-link" data-nav="assets">Cadastro de Ativos</a>' +
+                '<a href="assets.html" class="nav-link" data-nav="assets">Ativos</a>' +
                 '<a href="config.html" class="nav-link" data-nav="config">Configurações do Sistema</a>' +
                 '<a href="backup.html" class="nav-link" data-nav="backup">Backup</a>' +
                 '<a href="restore.html" class="nav-link" data-nav="restore">Restaurar</a>' +
@@ -35,7 +35,7 @@
             '<div class="sidebar-section sidebar-bottom" id="cotacaoBlock"' + (isAssetPage ? '' : ' style="display:none;"') + '>' +
                 '<h3 id="cotacaoLabel">' + cotacaoLabel + '</h3>' +
                 '<div class="price-box">' +
-                    '<input type="number" id="currentPriceInput" step="0.01" value="0">' +
+                    '<input type="text" inputmode="decimal" id="currentPriceInput" placeholder="0,00">' +
                     '<button id="btnRefreshPrice" class="btn-secondary">Atualizar Preço</button>' +
                     '<span id="priceStatus" class="price-status">—</span>' +
                 '</div>' +

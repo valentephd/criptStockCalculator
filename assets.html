@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cadastro de Ativos</title>
+    <title>Ativos</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body data-page="assets">
@@ -16,7 +16,7 @@
             <div class="header-left">
                 <button id="btnMenuToggle" class="menu-toggle" aria-label="Abrir menu">☰</button>
             </div>
-            <h1 class="app-title">Cadastro de Ativos</h1>
+            <h1 class="app-title">Ativos</h1>
             <div class="header-right">
                 <button id="btnOpenAssetModal">Adicionar Novo Ativo</button>
             </div>
@@ -33,10 +33,12 @@
                 <table id="assetsTable">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>#</th>
                             <th>Nome</th>
-                            <th>Símbolo/Ticker</th>
-                            <th>Tipo</th>
+                            <th>Quantidade</th>
+                            <th>Preço Médio Atual</th>
+                            <th>Total Investido</th>
+                            <th>Saldo Realizado</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -92,9 +94,12 @@
     </div>
 </div>
 
+<script src="js/format.js"></script>
+<script src="js/portfolio.js"></script>
 <script src="js/config.js"></script>
 <script src="js/assets.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/price.js"></script>
 <script src="js/shell.js"></script>
 <script>
     let showArchived = false;
@@ -177,6 +182,24 @@
         renderAssets();
     }
 
+    // Todas as operações (uma vez). A posição por ativo reusa o MESMO motor
+    // (processPortfolio) do painel: alimenta o global `transactions` e a cotação
+    // (input oculto injetado pelo shell) com o último preço conhecido do ativo.
+    const allTransactions = loadTransactions();
+
+    function computePosition(asset) {
+        window.transactions = allTransactions.filter(t => t.assetId === asset.id);
+        const last = loadLastPrice(asset.id);
+        document.getElementById('currentPriceInput').value = last ? String(last.price) : '0';
+        const d = processPortfolio();
+        return {
+            totalCoins: d.totalCoins,
+            avgPrice: d.avgPrice,
+            totalInvested: d.totalInvested,
+            saldo: d.totalRealizedProfit - d.totalInvested
+        };
+    }
+
     function renderAssets() {
         const all = loadAssets();
         const list = showArchived ? all : all.filter(a => a.isActive === true);
@@ -190,20 +213,25 @@
         }
         empty.style.display = 'none';
 
-        tbody.innerHTML = list.map(a => {
+        tbody.innerHTML = list.map((a, idx) => {
             const archived = a.isActive === false;
+            const pos = computePosition(a);
+            const decimals = (typeof a.quantityDecimals === 'number' ? a.quantityDecimals : 8);
+            const saldoCls = pos.saldo >= 0 ? 'positive' : 'negative';
             const open = `<a class="btn-icon" href="asset.html?id=${a.id}" title="Abrir ativo">👁</a>`;
             const edit = `<button class="btn-icon" data-edit="${a.id}" title="Editar ativo">✏️</button>`;
             const action = archived
                 ? `<button class="btn-icon" data-reactivate="${a.id}" title="Reativar ativo">♻</button>`
                 : `<button class="btn-icon danger" data-archive="${a.id}" title="Desativar ativo">🗑</button>`;
-            const badge = archived ? ' <span class="badge-archived">desativado</span>' : '';
+            const arch = archived ? ' <span class="badge-archived">desativado</span>' : '';
             return `
                 <tr class="${archived ? 'row-archived' : ''}">
-                    <td>${a.id}</td>
-                    <td>${a.name}${badge}</td>
-                    <td>${a.symbol}</td>
-                    <td>${a.type}</td>
+                    <td>${idx + 1}</td>
+                    <td>${a.name} <span class="badge-type">${a.type}</span>${arch}</td>
+                    <td>${formatAmount(pos.totalCoins, decimals)}</td>
+                    <td>${formatCurrency(pos.avgPrice)}</td>
+                    <td>${formatCurrency(pos.totalInvested)}</td>
+                    <td class="${saldoCls}">${formatCurrency(pos.saldo)}</td>
                     <td>${open}${edit}${action}</td>
                 </tr>`;
         }).join('');
