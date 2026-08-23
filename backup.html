@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="backup">
+
+<div class="app" id="app">
+    <!-- menu lateral injetado por js/shell.js -->
+
+    <div class="app-main">
+        <header class="app-header">
+            <div class="header-left">
+                <button id="btnMenuToggle" class="menu-toggle" aria-label="Abrir menu">☰</button>
+            </div>
+            <h1 class="app-title">Backup</h1>
+            <div class="header-right"></div>
+        </header>
+
+        <main class="content">
+            <div class="card">
+                <h2>Backup dos Dados</h2>
+                <p style="color: var(--text-dim);">Cópia de tudo que está salvo no navegador (LocalStorage), em JSON. Copie o texto ou baixe o arquivo.</p>
+                <textarea id="backupText" class="data-area" readonly></textarea>
+                <div class="form-group">
+                    <button id="btnCopy">Copiar JSON</button>
+                    <button id="btnDownload" class="btn-secondary">Fazer Download do Backup</button>
+                    <span id="copyStatus" class="price-status"></span>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/shell.js"></script>
+<script>
+    window.addEventListener('load', () => {
+        const area = document.getElementById('backupText');
+        const status = document.getElementById('copyStatus');
+        area.value = backupToText();
+
+        document.getElementById('btnCopy').addEventListener('click', async () => {
+            const text = area.value;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    area.select();
+                    document.execCommand('copy');
+                    area.setSelectionRange(0, 0);
+                }
+                status.className = 'price-status ok';
+                status.textContent = 'JSON copiado!';
+            } catch (e) {
+                status.className = 'price-status error';
+                status.textContent = 'Não foi possível copiar automaticamente — selecione e copie manualmente.';
+            }
+        });
+
+        document.getElementById('btnDownload').addEventListener('click', () => exportBackup());
+    });
+</script>
+
+</body>
+</html>

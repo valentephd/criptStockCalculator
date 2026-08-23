@@ -233,17 +233,17 @@ th {
 }
 .header-left { justify-self: start; }
 .header-right { justify-self: end; }
-#btnOpenModal {
+#btnOpenModal, #btnOpenAssetModal {
     border-radius: 16px;
     padding: 11px 20px;
     box-shadow: 4px 6px 12px rgba(0, 0, 0, 0.35);
     transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
 }
-#btnOpenModal:hover {
+#btnOpenModal:hover, #btnOpenAssetModal:hover {
     box-shadow: 6px 8px 18px rgba(0, 0, 0, 0.45);
     transform: translateY(-1px);
 }
-#btnOpenModal:active {
+#btnOpenModal:active, #btnOpenAssetModal:active {
     transform: translateY(0);
     box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.4);
 }
@@ -345,6 +345,95 @@ th {
 .link:hover, .btn-link:hover {
     text-decoration: underline;
 }
+
+/* Área de texto JSON (Backup / Restaurar) */
+.data-area {
+    width: 100%;
+    min-height: 240px;
+    box-sizing: border-box;
+    resize: vertical;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.85em;
+    line-height: 1.4;
+    background-color: var(--panel-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+/* Botão de ação destrutiva */
+.btn-danger {
+    background-color: var(--negative);
+    color: #ffffff;
+}
+.btn-danger:hover {
+    background-color: #c85f6a;
+}
+
+/* Botão de ação em ícone (ex.: abrir ativo, desativar) */
+.btn-icon {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background-color: transparent;
+    color: var(--accent);
+    text-decoration: none;
+    line-height: 1;
+    cursor: pointer;
+}
+.btn-icon:hover {
+    background-color: var(--accent);
+    color: #ffffff;
+}
+.btn-icon + .btn-icon {
+    margin-left: 6px;
+}
+.btn-icon.danger {
+    color: var(--negative);
+}
+.btn-icon.danger:hover {
+    background-color: var(--negative);
+    color: #ffffff;
+}
+
+/* Barra de topo da lista de ativos (título + toggle) */
+.assets-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.assets-toolbar h2 {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin: 0;
+}
+.btn-secondary.active {
+    background-color: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+}
+
+/* Linha de ativo desativado */
+.row-archived {
+    opacity: 0.55;
+}
+.badge-archived {
+    display: inline-block;
+    font-size: 0.72em;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 8px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
 .sidebar-section {
     margin-bottom: 20px;
 }
@@ -414,6 +503,13 @@ th {
 }
 .modal-box h2 {
     text-align: center;
+}
+.modal-subtitle {
+    text-align: center;
+    color: var(--accent);
+    font-weight: bold;
+    font-size: 1.1em;
+    margin: 4px 0 6px;
 }
 .modal-form {
     display: flex;

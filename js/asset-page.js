@@ -5,11 +5,14 @@
 let allTransactions = loadTransactions();   // completo (todos os ativos)
 let transactions = [];                       // visão do ativo da rota (motor + tabela)
 let assetSymbol = '';                        // símbolo do ativo (rótulos dinâmicos)
+let currentAsset = null;                     // ativo da rota (?id=)
+let assetDecimals = 8;                       // casas decimais da quantidade do ativo
 
-// Recalcula a visão do ativo ativo a partir da lista completa.
+// Recalcula a visão do ativo da rota a partir da lista completa.
 function setActiveView() {
-    const activeId = getConfig('activeAssetId', null);
-    transactions = allTransactions.filter(t => t.assetId === activeId);
+    transactions = currentAsset
+        ? allTransactions.filter(t => t.assetId === currentAsset.id)
+        : [];
 }
 
 // Formata a data/hora de uma string ISO no padrão pt-BR (usado no preço).
@@ -65,6 +68,9 @@ function resultTag(label, value, kind) {
 // Entrada livre: dígitos e UMA vírgula, com no máximo `decimals` casas.
 function sanitizeDecimalInput(value, decimals) {
     let v = String(value).replace(/[^\d,]/g, '');
+    if (decimals <= 0) {
+        return v.replace(/,/g, ''); // sem casas decimais: só dígitos
+    }
     const i = v.indexOf(',');
     if (i !== -1) {
         const intPart = v.slice(0, i);
@@ -78,7 +84,7 @@ function updateDashboard() {
     const data = processPortfolio();
 
     document.getElementById('valTotalInvested').innerText = formatCurrency(data.totalInvested);
-    document.getElementById('valTotalCoins').innerText = formatAmount(data.totalCoins, 8) + ' ' + assetSymbol;
+    document.getElementById('valTotalCoins').innerText = formatAmount(data.totalCoins, assetDecimals) + ' ' + assetSymbol;
     document.getElementById('valAvgPrice').innerText = formatCurrency(data.avgPrice);
     document.getElementById('valMarketValue').innerText = formatCurrency(data.marketValue);
 
@@ -125,7 +131,7 @@ function updateDashboard() {
             <td>${row.realId}</td>
             <td>${dateHtml}</td>
             <td>${row.type}</td>
-            <td>${formatAmount(row.assetQuantity, 8)}</td>
+            <td>${formatAmount(row.assetQuantity, assetDecimals)}</td>
             <td>${formatCurrency(row.brl)}</td>
             <td>${formatCurrency(row.unitPrice)}</td>
             <td>${resultHtml}</td>
@@ -164,8 +170,7 @@ function addTransaction() {
         return;
     }
 
-    const activeId = getConfig('activeAssetId', null);
-    if (activeId === null || activeId === undefined) {
+    if (!currentAsset) {
         alert('Nenhum ativo selecionado.');
         return;
     }
@@ -184,7 +189,7 @@ function addTransaction() {
         saveTransactions(allTransactions);
     } else {
         const newId = computeNextTransactionId(allTransactions);
-        allTransactions.push({ id: newId, assetId: activeId, dateTransaction, type, brl, assetQuantity });
+        allTransactions.push({ id: newId, assetId: currentAsset.id, dateTransaction, type, brl, assetQuantity });
         allTransactions = sortTransactionsByDate(allTransactions);
         saveTransactions(allTransactions);
         recalcNextTransactionId(allTransactions);
@@ -207,7 +212,7 @@ function openModal(tx) {
         btnEl.textContent = 'Salvar';
         setOpType(tx.type);
         document.getElementById('opBrl').value = formatAmount(tx.brl, 2);
-        document.getElementById('opAave').value = formatAmount(tx.assetQuantity, 8);
+        document.getElementById('opAave').value = formatAmount(tx.assetQuantity, assetDecimals);
         document.getElementById('opDate').value = tx.dateTransaction
             ? String(tx.dateTransaction).slice(0, 10)
             : toLocalDateValue(new Date());
@@ -278,7 +283,7 @@ function setPriceStatus(text, cls) {
 }
 
 async function refreshPrice() {
-    const asset = getActiveAsset();
+    const asset = currentAsset;
     if (!asset) {
         setPriceStatus('Nenhum ativo selecionado.');
         return;
@@ -313,11 +318,14 @@ window.addEventListener('load', () => {
         return;
     }
 
-    setConfig('activeAssetId', routeAssetId); // fonte da verdade = URL (persiste "último visto")
+    currentAsset = asset; // fonte da verdade = URL
     assetSymbol = asset.symbol;
+    assetDecimals = (typeof asset.quantityDecimals === 'number' ? asset.quantityDecimals : 8);
     document.getElementById('assetTitle').textContent = asset.symbol;
+    document.getElementById('opModalAsset').textContent = asset.symbol;
     document.getElementById('lblTotalCoins').textContent = 'Total ' + asset.symbol;
     document.getElementById('thQtd').textContent = 'Qtd (' + asset.symbol + ')';
+    document.getElementById('opAave').placeholder = assetDecimals > 0 ? '0,' + '0'.repeat(assetDecimals) : '0';
     setActiveView();
 
     // Editar/Remover linha do histórico (listener delegado)
@@ -345,13 +353,13 @@ window.addEventListener('load', () => {
     const opBrlEl = document.getElementById('opBrl');
     opBrlEl.addEventListener('input', () => { opBrlEl.value = maskAmount(opBrlEl.value, 2); });
 
-    // Quantidade: entrada livre com vírgula; completa 8 casas ao sair.
+    // Quantidade: entrada livre com vírgula; completa as casas do ativo ao sair.
     const opAaveEl = document.getElementById('opAave');
-    opAaveEl.addEventListener('input', () => { opAaveEl.value = sanitizeDecimalInput(opAaveEl.value, 8); });
+    opAaveEl.addEventListener('input', () => { opAaveEl.value = sanitizeDecimalInput(opAaveEl.value, assetDecimals); });
     opAaveEl.addEventListener('blur', () => {
         if (!opAaveEl.value) return;
         const num = unmaskAmount(opAaveEl.value);
-        opAaveEl.value = isFinite(num) ? formatAmount(num, 8) : '';
+        opAaveEl.value = isFinite(num) ? formatAmount(num, assetDecimals) : '';
     });
     document.getElementById('btnAdd').addEventListener('click', addTransaction);
     document.getElementById('btnCancelModal').addEventListener('click', closeModal);
@@ -379,7 +387,8 @@ window.addEventListener('load', () => {
 
     updateDashboard();
 
-    // Atualiza na inicialização e depois a cada 10 minutos.
+    // Atualiza na inicialização e depois no intervalo configurado (minutos).
     refreshPrice();
-    setInterval(refreshPrice, PRICE_REFRESH_MS);
+    const refreshMinutes = Number(getConfig('priceRefreshMinutes', 10)) || 10;
+    setInterval(refreshPrice, refreshMinutes * 60 * 1000);
 });

@@ -114,10 +114,9 @@ function backupFileName() {
     return `backup_criptstock_${yy}${mm}${dd}_${hh}${mi}.json`;
 }
 
-// Exporta TODO o conteúdo do LocalStorage (transactions, lastPrice,
-// systemConfigs e quaisquer outras chaves). Cada valor é gravado como JSON
-// real (objeto/array), sem virar string escapada.
-function exportBackup() {
+// Monta o objeto de backup: TODAS as chaves do LocalStorage, com cada valor
+// como JSON real (objeto/array), sem virar string escapada.
+function buildBackupObject() {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -128,7 +127,17 @@ function exportBackup() {
             data[key] = raw; // valor não-JSON: mantém a string
         }
     }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    return data;
+}
+
+// Texto JSON (identado) do backup — usado na página de Backup e no download.
+function backupToText() {
+    return JSON.stringify(buildBackupObject(), null, 2);
+}
+
+// Baixa um arquivo com o backup atual.
+function exportBackup() {
+    const blob = new Blob([backupToText()], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -147,16 +156,25 @@ function restoreDataMap(map) {
     });
 }
 
+// Restaura a partir de um objeto já parseado (mapa { chave: conteúdo }).
+// Retorna true se restaurou; false se o formato for inválido.
+function restoreBackupObject(parsed) {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        restoreDataMap(parsed);
+        return true;
+    }
+    return false;
+}
+
 // Importa um arquivo de backup (formato novo: objeto { chave: conteúdo }) e
 // restaura o LocalStorage. Em erro, mantém os dados atuais e avisa.
-// onDone() recarrega a UI.
+// onDone() é chamado após restaurar com sucesso.
 function importBackup(file, onDone) {
     const reader = new FileReader();
     reader.onload = () => {
         try {
             const parsed = JSON.parse(reader.result);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                restoreDataMap(parsed);
+            if (restoreBackupObject(parsed)) {
                 if (typeof onDone === 'function') onDone();
                 alert('Backup restaurado com sucesso.');
                 return;
@@ -170,4 +188,9 @@ function importBackup(file, onDone) {
         alert('Erro ao abrir o arquivo de backup.');
     };
     reader.readAsText(file);
+}
+
+// Apaga TODOS os dados do sistema no LocalStorage (reset).
+function clearAllData() {
+    localStorage.clear();
 }

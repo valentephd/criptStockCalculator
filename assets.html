@@ -17,21 +17,26 @@
                 <button id="btnMenuToggle" class="menu-toggle" aria-label="Abrir menu">☰</button>
             </div>
             <h1 class="app-title">Cadastro de Ativos</h1>
-            <div class="header-right"></div>
+            <div class="header-right">
+                <button id="btnOpenAssetModal">Adicionar Novo Ativo</button>
+            </div>
         </header>
 
         <main class="content">
             <div class="card">
-                <h2>Ativos Cadastrados</h2>
-                <p id="assetsEmpty" style="display:none; color: var(--text-dim);">Nenhum ativo cadastrado.</p>
+                <div class="assets-toolbar">
+                    <h2>Lista de Ativos</h2>
+                    <button id="toggleArchived" class="btn-secondary">Mostrar desativados</button>
+                </div>
+                <p id="assetsEmpty" style="display:none; color: var(--text-dim);">Nenhum ativo para exibir.</p>
                 <div class="table-wrap">
                 <table id="assetsTable">
                     <thead>
                         <tr>
-                            <th>Símbolo</th>
+                            <th>ID</th>
                             <th>Nome</th>
+                            <th>Símbolo/Ticker</th>
                             <th>Tipo</th>
-                            <th>ID de mercado</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -45,28 +50,236 @@
     </div>
 </div>
 
+<!-- Modal: Confirmação de desativação -->
+<div id="archiveModal" class="modal-overlay">
+    <div id="archiveBackdrop" class="modal-backdrop"></div>
+    <div class="modal-box">
+        <h2>Desativar Ativo</h2>
+        <p>O ativo <strong id="archiveName"></strong> ficará <strong>desativado</strong> e sairá da lista principal, mas <strong>continuará nos dados</strong> — suas operações e histórico são preservados. Você pode reexibi-lo com o botão "Mostrar desativados".</p>
+        <div class="modal-actions">
+            <button id="btnArchiveCancel" class="btn-secondary">Cancelar</button>
+            <button id="btnArchiveConfirm" class="btn-danger">Desativar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Novo / Editar Ativo -->
+<div id="assetModal" class="modal-overlay">
+    <div id="assetModalBackdrop" class="modal-backdrop"></div>
+    <div class="modal-box">
+        <h2 id="assetModalTitle">Novo Ativo</h2>
+        <div class="modal-form">
+            <label>Nome</label>
+            <input type="text" id="asName" placeholder="Ex.: Bitcoin">
+
+            <label>Símbolo/Ticker</label>
+            <input type="text" id="asSymbol" placeholder="Ex.: BTC">
+
+            <label>ID de mercado (na API de preço)</label>
+            <input type="text" id="asMarketId" placeholder="Ex.: bitcoin">
+
+            <label>Tipo</label>
+            <input type="text" id="asType" list="assetTypes" placeholder="Ex.: crypto" autocomplete="off">
+            <datalist id="assetTypes"></datalist>
+
+            <label>Casas decimais da quantidade</label>
+            <input type="number" id="asDecimals" min="0" max="18" step="1" value="8">
+        </div>
+        <div class="modal-actions">
+            <button id="btnAssetCancel" class="btn-secondary">Cancelar</button>
+            <button id="btnAssetSave">Salvar</button>
+        </div>
+    </div>
+</div>
+
 <script src="js/config.js"></script>
 <script src="js/assets.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/shell.js"></script>
 <script>
-    window.addEventListener('load', () => {
-        const assets = loadAssets().filter(a => a.isActive !== false);
+    let showArchived = false;
+    let pendingArchiveId = null;
+    let editingAssetId = null;
+
+    // Preenche o datalist de tipos com os tipos já existentes (pick-or-create).
+    function populateTypeOptions() {
+        const types = [...new Set(loadAssets().map(a => a.type).filter(Boolean))];
+        document.getElementById('assetTypes').innerHTML = types.map(t => `<option value="${t}"></option>`).join('');
+    }
+
+    // Abre o modal de ativo. Sem argumento = novo; com um asset = edição.
+    function openAssetModal(asset) {
+        populateTypeOptions();
+        const title = document.getElementById('assetModalTitle');
+        if (asset) {
+            editingAssetId = asset.id;
+            title.textContent = 'Editar Ativo';
+            document.getElementById('asName').value = asset.name || '';
+            document.getElementById('asSymbol').value = asset.symbol || '';
+            document.getElementById('asMarketId').value = asset.marketId || '';
+            document.getElementById('asType').value = asset.type || '';
+            document.getElementById('asDecimals').value = (asset.quantityDecimals == null ? 8 : asset.quantityDecimals);
+        } else {
+            editingAssetId = null;
+            title.textContent = 'Novo Ativo';
+            document.getElementById('asName').value = '';
+            document.getElementById('asSymbol').value = '';
+            document.getElementById('asMarketId').value = '';
+            document.getElementById('asType').value = 'crypto';
+            document.getElementById('asDecimals').value = 8;
+        }
+        document.getElementById('assetModal').classList.add('open');
+    }
+
+    function closeAssetModal() {
+        document.getElementById('assetModal').classList.remove('open');
+        editingAssetId = null;
+    }
+
+    // Salva o ativo do modal: edição (mesmo id) ou novo (id via computeNextAssetId).
+    function saveAsset() {
+        const name = document.getElementById('asName').value.trim();
+        const symbol = document.getElementById('asSymbol').value.trim();
+        const marketId = document.getElementById('asMarketId').value.trim();
+        const type = document.getElementById('asType').value.trim() || 'crypto';
+        const decimals = parseInt(document.getElementById('asDecimals').value, 10);
+
+        if (!name || !symbol || !marketId) {
+            alert('Preencha Nome, Símbolo e ID de mercado.');
+            return;
+        }
+        const quantityDecimals = (Number.isFinite(decimals) && decimals >= 0) ? decimals : 8;
+
+        const assets = loadAssets();
+        if (editingAssetId != null) {
+            const a = assets.find(x => x.id === editingAssetId);
+            if (a) {
+                a.name = name;
+                a.symbol = symbol;
+                a.marketId = marketId;
+                a.type = type;
+                a.quantityDecimals = quantityDecimals;
+            }
+        } else {
+            assets.push({
+                id: computeNextAssetId(assets),
+                type: type,
+                marketId: marketId,
+                symbol: symbol,
+                name: name,
+                quantityDecimals: quantityDecimals,
+                isActive: true,
+                createdAt: new Date().toISOString()
+            });
+        }
+        saveAssets(assets);
+        closeAssetModal();
+        renderAssets();
+    }
+
+    function renderAssets() {
+        const all = loadAssets();
+        const list = showArchived ? all : all.filter(a => a.isActive === true);
         const tbody = document.querySelector('#assetsTable tbody');
         const empty = document.getElementById('assetsEmpty');
-        if (!assets.length) {
+
+        if (!list.length) {
+            tbody.innerHTML = '';
             empty.style.display = '';
             return;
         }
-        tbody.innerHTML = assets.map(a => `
-            <tr>
-                <td>${a.symbol}</td>
-                <td>${a.name}</td>
-                <td>${a.type}</td>
-                <td>${a.marketId}</td>
-                <td><a class="btn-link" href="asset.html?id=${a.id}">Abrir</a></td>
-            </tr>
-        `).join('');
+        empty.style.display = 'none';
+
+        tbody.innerHTML = list.map(a => {
+            const archived = a.isActive === false;
+            const open = `<a class="btn-icon" href="asset.html?id=${a.id}" title="Abrir ativo">👁</a>`;
+            const edit = `<button class="btn-icon" data-edit="${a.id}" title="Editar ativo">✏️</button>`;
+            const action = archived
+                ? `<button class="btn-icon" data-reactivate="${a.id}" title="Reativar ativo">♻</button>`
+                : `<button class="btn-icon danger" data-archive="${a.id}" title="Desativar ativo">🗑</button>`;
+            const badge = archived ? ' <span class="badge-archived">desativado</span>' : '';
+            return `
+                <tr class="${archived ? 'row-archived' : ''}">
+                    <td>${a.id}</td>
+                    <td>${a.name}${badge}</td>
+                    <td>${a.symbol}</td>
+                    <td>${a.type}</td>
+                    <td>${open}${edit}${action}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    window.addEventListener('load', () => {
+        renderAssets();
+
+        // Toggle: mostrar/ocultar desativados
+        const toggleBtn = document.getElementById('toggleArchived');
+        toggleBtn.addEventListener('click', () => {
+            showArchived = !showArchived;
+            toggleBtn.textContent = showArchived ? 'Ocultar desativados' : 'Mostrar desativados';
+            toggleBtn.classList.toggle('active', showArchived);
+            renderAssets();
+        });
+
+        // Botão "Adicionar Novo Ativo" + fiação do modal de ativo
+        document.getElementById('btnOpenAssetModal').addEventListener('click', () => openAssetModal());
+        document.getElementById('btnAssetSave').addEventListener('click', saveAsset);
+        document.getElementById('btnAssetCancel').addEventListener('click', closeAssetModal);
+        document.getElementById('assetModalBackdrop').addEventListener('click', closeAssetModal);
+
+        // Ações da tabela: editar, reativar (direto) ou desativar (confirmação)
+        document.querySelector('#assetsTable tbody').addEventListener('click', (e) => {
+            const editBtn = e.target.closest('button[data-edit]');
+            if (editBtn) {
+                const asset = getAssetById(Number(editBtn.getAttribute('data-edit')));
+                if (asset) openAssetModal(asset);
+                return;
+            }
+
+            const reBtn = e.target.closest('button[data-reactivate]');
+            if (reBtn) {
+                const id = Number(reBtn.getAttribute('data-reactivate'));
+                const assets = loadAssets();
+                const a = assets.find(x => x.id === id);
+                if (a) {
+                    a.isActive = true;
+                    saveAssets(assets);
+                }
+                renderAssets();
+                return;
+            }
+
+            const btn = e.target.closest('button[data-archive]');
+            if (!btn) return;
+            const id = Number(btn.getAttribute('data-archive'));
+            const asset = getAssetById(id);
+            if (!asset) return;
+            pendingArchiveId = id;
+            document.getElementById('archiveName').textContent = asset.symbol + ' (id ' + id + ')';
+            document.getElementById('archiveModal').classList.add('open');
+        });
+
+        // Modal de confirmação
+        const modal = document.getElementById('archiveModal');
+        const closeModal = () => { modal.classList.remove('open'); pendingArchiveId = null; };
+        document.getElementById('btnArchiveCancel').addEventListener('click', closeModal);
+        document.getElementById('archiveBackdrop').addEventListener('click', closeModal);
+        document.getElementById('btnArchiveConfirm').addEventListener('click', () => {
+            if (pendingArchiveId != null) {
+                const assets = loadAssets();
+                const a = assets.find(x => x.id === pendingArchiveId);
+                if (a) {
+                    a.isActive = false;
+                    saveAssets(assets);
+                }
+            }
+            closeModal();
+            renderAssets();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { closeModal(); closeAssetModal(); }
+        });
     });
 </script>
 

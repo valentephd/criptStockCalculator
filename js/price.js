@@ -2,7 +2,6 @@
 // preço conhecido por ativo (chave "lastPrice", uma lista por assetId).
 
 const PRICE_KEY = 'lastPrice';
-const PRICE_REFRESH_MS = 10 * 60 * 1000; // 10 minutos
 
 // Monta a URL da CoinGecko para um identificador de mercado (marketId).
 function coingeckoUrl(marketId) {

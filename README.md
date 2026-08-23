@@ -24,7 +24,7 @@ O motor ([`js/portfolio.js`](js/portfolio.js)) usa **identificação específica
 - **Preço Médio Atual** — custo médio das moedas em carteira
 - **Valor de Mercado Atual** — moedas que possui x cotação atual (CoinGecko API)
 - **Lucro Realizado Total** — resultado apurado nas vendas
-- **Saldo Total** — `Lucro Realizado − Total Investido`
+- **Saldo Total Realizado** — `Lucro Realizado − Total Investido`
 
 > As operações são sempre processadas em **ordem cronológica** (por data), garantindo o casamento correto compra → venda, mesmo ao lançar operações com data retroativa.
 

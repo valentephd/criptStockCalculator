@@ -30,15 +30,15 @@ function saveAssets(assets) {
     localStorage.setItem(ASSETS_KEY, JSON.stringify(assets));
 }
 
-// Retorna o ativo atualmente ativo (systemConfigs.activeAssetId) ou null.
-function getActiveAsset() {
-    const activeId = getConfig('activeAssetId', null);
-    if (activeId === null || activeId === undefined) return null;
-    return getAssetById(activeId);
-}
-
 // Busca um ativo pelo id (número) no registro; null se não existir.
 function getAssetById(id) {
     if (id === null || id === undefined || Number.isNaN(id)) return null;
     return loadAssets().find(a => a.id === id) || null;
+}
+
+// Calcula o próximo ID de ativo: considera tanto o maior ID existente quanto o
+// tamanho do array, e soma 1 (evita colisões, igual às transações).
+function computeNextAssetId(assets) {
+    const maxId = assets.reduce((m, a) => (typeof a.id === 'number' && a.id > m ? a.id : m), 0);
+    return Math.max(maxId, assets.length) + 1;
 }

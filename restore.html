@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurar</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="restore">
+
+<div class="app" id="app">
+    <!-- menu lateral injetado por js/shell.js -->
+
+    <div class="app-main">
+        <header class="app-header">
+            <div class="header-left">
+                <button id="btnMenuToggle" class="menu-toggle" aria-label="Abrir menu">☰</button>
+            </div>
+            <h1 class="app-title">Restaurar</h1>
+            <div class="header-right"></div>
+        </header>
+
+        <main class="content">
+            <div class="card">
+                <h2>Restaurar por Texto</h2>
+                <p style="color: var(--text-dim);">Cole o JSON de um backup e carregue. Isso <strong>sobrescreve</strong> os dados atuais.</p>
+                <textarea id="restoreText" class="data-area" placeholder="Cole aqui o JSON do backup…"></textarea>
+                <div class="form-group">
+                    <button id="btnLoadText">Carregar do texto</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Restaurar por Arquivo</h2>
+                <p style="color: var(--text-dim);">Selecione um arquivo de backup (.json) do computador.</p>
+                <div class="form-group">
+                    <input type="file" id="restoreFile" accept=".json,application/json">
+                    <button id="btnLoadFile" class="btn-secondary">Restaurar de arquivo</button>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/shell.js"></script>
+<script>
+    window.addEventListener('load', () => {
+        document.getElementById('btnLoadText').addEventListener('click', () => {
+            const text = document.getElementById('restoreText').value.trim();
+            if (!text) { alert('Cole o JSON do backup primeiro.'); return; }
+            let parsed;
+            try {
+                parsed = JSON.parse(text);
+            } catch (e) {
+                alert('JSON inválido: ' + e.message);
+                return;
+            }
+            if (!restoreBackupObject(parsed)) {
+                alert('Formato de backup inválido.');
+                return;
+            }
+            alert('Backup restaurado com sucesso.');
+            window.location.href = 'index.html';
+        });
+
+        document.getElementById('btnLoadFile').addEventListener('click', () => {
+            const file = document.getElementById('restoreFile').files[0];
+            if (!file) { alert('Selecione um arquivo primeiro.'); return; }
+            importBackup(file, () => { window.location.href = 'index.html'; });
+        });
+    });
+</script>
+
+</body>
+</html>

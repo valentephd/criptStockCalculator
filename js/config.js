@@ -6,25 +6,28 @@ const DEFAULT_CONFIG = {
     menuExpanded: false,
     nextTransactionId: 1,
     nextAssetId: 1,
-    activeAssetId: null,
     priceRefreshMinutes: 10
 };
 
-// Lê o objeto de configurações, mesclando com os defaults.
+// Lê o objeto de configurações. Parte dos defaults e sobrepõe apenas as chaves
+// CONHECIDAS que estiverem salvas — chaves obsoletas (ex.: um activeAssetId
+// legado) são descartadas, mantendo o systemConfigs limpo.
 function loadSystemConfigs() {
+    let parsed = {};
     const raw = localStorage.getItem(CONFIG_KEY);
-    if (!raw) {
-        return { ...DEFAULT_CONFIG };
-    }
-    try {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-            return { ...DEFAULT_CONFIG, ...parsed };
+    if (raw) {
+        try {
+            const p = JSON.parse(raw);
+            if (p && typeof p === 'object') parsed = p;
+        } catch (e) {
+            console.warn('Falha ao ler systemConfigs do LocalStorage:', e);
         }
-    } catch (e) {
-        console.warn('Falha ao ler systemConfigs do LocalStorage:', e);
     }
-    return { ...DEFAULT_CONFIG };
+    const cfg = { ...DEFAULT_CONFIG };
+    Object.keys(DEFAULT_CONFIG).forEach(k => {
+        if (k in parsed) cfg[k] = parsed[k];
+    });
+    return cfg;
 }
 
 // Salva o objeto de configurações no LocalStorage.

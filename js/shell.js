@@ -28,14 +28,10 @@
             '<nav class="sidebar-nav">' +
                 '<a href="index.html" class="nav-link" data-nav="home">Início</a>' +
                 '<a href="assets.html" class="nav-link" data-nav="assets">Cadastro de Ativos</a>' +
+                '<a href="config.html" class="nav-link" data-nav="config">Configurações do Sistema</a>' +
+                '<a href="backup.html" class="nav-link" data-nav="backup">Backup</a>' +
+                '<a href="restore.html" class="nav-link" data-nav="restore">Restaurar</a>' +
             '</nav>' +
-            '<div class="sidebar-section">' +
-                '<div class="backup-bar">' +
-                    '<button id="btnBackup" class="btn-secondary">Fazer Backup</button>' +
-                    '<button id="btnRestore" class="btn-secondary">Restaurar Backup</button>' +
-                    '<input type="file" id="restoreInput" accept=".json,application/json" style="display:none;">' +
-                '</div>' +
-            '</div>' +
             '<div class="sidebar-section sidebar-bottom" id="cotacaoBlock"' + (isAssetPage ? '' : ' style="display:none;"') + '>' +
                 '<h3 id="cotacaoLabel">' + cotacaoLabel + '</h3>' +
                 '<div class="price-box">' +
@@ -61,15 +57,4 @@
         });
     }
     app.classList.toggle('menu-open', getConfig('menuExpanded', false));
-
-    // Backup / Restaurar (comuns a todas as páginas).
-    document.getElementById('btnBackup').addEventListener('click', () => exportBackup());
-    const restoreInput = document.getElementById('restoreInput');
-    document.getElementById('btnRestore').addEventListener('click', () => restoreInput.click());
-    restoreInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        importBackup(file, () => location.reload());
-        e.target.value = '';
-    });
 })();
