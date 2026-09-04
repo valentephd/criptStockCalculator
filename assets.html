@@ -35,6 +35,7 @@
                         <tr>
                             <th>#</th>
                             <th>Nome</th>
+                            <th>Símbolo</th>
                             <th>Quantidade</th>
                             <th>Preço Médio Atual</th>
                             <th>Total Investido</th>
@@ -224,10 +225,12 @@
                 ? `<button class="btn-icon" data-reactivate="${a.id}" title="Reativar ativo">♻</button>`
                 : `<button class="btn-icon danger" data-archive="${a.id}" title="Desativar ativo">🗑</button>`;
             const arch = archived ? ' <span class="badge-archived">desativado</span>' : '';
+            const typeCls = a.type === 'FII' ? 'badge-type badge-type--fii' : 'badge-type';
             return `
                 <tr class="${archived ? 'row-archived' : ''}">
                     <td>${idx + 1}</td>
-                    <td>${a.name} <span class="badge-type">${a.type}</span>${arch}</td>
+                    <td>${a.name} <span class="${typeCls}">${a.type}</span>${arch}</td>
+                    <td>${a.symbol}</td>
                     <td>${formatAmount(pos.totalCoins, decimals)}</td>
                     <td>${formatCurrency(pos.avgPrice)}</td>
                     <td>${formatCurrency(pos.totalInvested)}</td>

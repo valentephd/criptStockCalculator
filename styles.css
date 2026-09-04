@@ -448,6 +448,12 @@ th {
     letter-spacing: 0.3px;
     vertical-align: middle;
 }
+/* Tag de FII (âmbar/dourado) — distingue de crypto (azul). */
+.badge-type--fii {
+    color: #d9a441;
+    background-color: rgba(217, 164, 65, 0.12);
+    border-color: rgba(217, 164, 65, 0.35);
+}
 .sidebar-section {
     margin-bottom: 20px;
 }
