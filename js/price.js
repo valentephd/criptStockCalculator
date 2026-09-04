@@ -3,10 +3,22 @@
 
 const PRICE_KEY = 'lastPrice';
 
+// Proxy CORS público usado apenas para os FIIs (o Yahoo não envia header CORS).
+// Isolado numa constante para troca fácil caso o proxy fique indisponível.
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
 // Monta a URL da CoinGecko para um identificador de mercado (marketId).
 function coingeckoUrl(marketId) {
     return 'https://api.coingecko.com/api/v3/simple/price?ids=' +
         encodeURIComponent(marketId) + '&vs_currencies=brl';
+}
+
+// Ticker do FII para o Yahoo: usa marketId (ou symbol) em maiúsculas e garante
+// o sufixo ".SA" da B3. Ex.: "gare11" -> "GARE11.SA".
+function fiiTicker(asset) {
+    let t = String((asset && (asset.marketId || asset.symbol)) || '').trim().toUpperCase();
+    if (t && !t.endsWith('.SA')) t += '.SA';
+    return t;
 }
 
 // Lê a lista de últimos preços (por ativo). Vazia se ausente/ inválida.
@@ -41,7 +53,7 @@ function saveLastPrice(assetId, price) {
     return record;
 }
 
-// Consulta o preço atual (BRL) de um ativo pelo seu marketId.
+// Consulta o preço atual (BRL) via CoinGecko pelo marketId (usado por crypto).
 async function fetchAssetPriceBRL(marketId) {
     const res = await fetch(coingeckoUrl(marketId), { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
@@ -54,4 +66,29 @@ async function fetchAssetPriceBRL(marketId) {
         throw new Error('Resposta inesperada da API');
     }
     return price;
+}
+
+// Consulta o preço atual (BRL) de um FII via Yahoo Finance, através do proxy
+// CORS. Lê chart.result[0].meta.regularMarketPrice.
+async function fetchFiiPriceBRL(ticker) {
+    const yahoo = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ticker);
+    const res = await fetch(CORS_PROXY + encodeURIComponent(yahoo), { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) {
+        throw new Error('HTTP ' + res.status);
+    }
+    const data = await res.json();
+    const meta = data && data.chart && data.chart.result && data.chart.result[0] && data.chart.result[0].meta;
+    const price = meta && meta.regularMarketPrice;
+    if (typeof price !== 'number' || !isFinite(price)) {
+        throw new Error('Resposta inesperada da API (Yahoo)');
+    }
+    return price;
+}
+
+// Dispatcher por tipo de ativo: FII -> Yahoo (proxy); demais -> CoinGecko.
+async function fetchAssetPrice(asset) {
+    if (asset && asset.type === 'FII') {
+        return fetchFiiPriceBRL(fiiTicker(asset));
+    }
+    return fetchAssetPriceBRL(asset.marketId);
 }

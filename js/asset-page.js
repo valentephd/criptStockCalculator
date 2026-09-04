@@ -25,6 +25,21 @@ function setActiveView() {
 // Quantidade de papéis em carteira até (e incluindo) uma data — soma de compras
 // menos vendas com dateTransaction <= data. Base para o "R$ por ação" do provento
 // e a validação de lançamento. Datas comparadas como texto "YYYY-MM-DD".
+// Custo/posição do ativo em (e até) uma data, reaproveitando o MOTOR: troca
+// temporariamente o global `transactions` pelas compras/vendas até a data e lê
+// o resultado (identificação específica de lotes idêntica ao painel). Restaura
+// `transactions` ao final. O preço atual não afeta invested/coins/avg.
+function costBasisOn(dateStr) {
+    const cut = String(dateStr || '').slice(0, 10);
+    const saved = transactions;
+    transactions = (currentAsset ? allTransactions.filter(t => t.assetId === currentAsset.id) : [])
+        .filter(t => (t.type === 'buy' || t.type === 'sell') &&
+            String(t.dateTransaction || '').slice(0, 10) <= cut);
+    const d = processPortfolio();
+    transactions = saved;
+    return { invested: d.totalInvested, coins: d.totalCoins, avg: d.avgPrice };
+}
+
 function qtyHeldOn(dateStr, excludeId) {
     const cut = String(dateStr || '').slice(0, 10);
     let held = 0;
@@ -102,7 +117,7 @@ function updateDashboard() {
 
     document.getElementById('valTotalInvested').innerText = formatCurrency(data.totalInvested);
     document.getElementById('valTotalCoins').innerText = formatAmount(data.totalCoins, assetDecimals) + ' ' + assetSymbol;
-    document.getElementById('valAvgPrice').innerText = formatCurrency(data.avgPrice);
+    document.getElementById('valAvgPrice').innerText = formatUnitPrice(data.avgPrice);
     document.getElementById('valMarketValue').innerText = formatCurrency(data.marketValue);
 
     const elProfit = document.getElementById('valRealizedProfit');
@@ -116,6 +131,28 @@ function updateDashboard() {
         elProventos.className = 'summary-value positive';
     }
 
+    // Payback de Proventos = Proventos Recebidos ÷ Total Investido ATUAL.
+    // Dinâmico: mede quanto do custo da posição que você AINDA tem já voltou em
+    // proventos. Com 0 cotas (posição zerada) não há o que calcular -> "—".
+    const elProvYoC = document.getElementById('valProventosYoC');
+    if (elProvYoC) {
+        if (data.totalInvested > 0) {
+            elProvYoC.innerText = formatPct(proventosTotal / data.totalInvested);
+            elProvYoC.className = 'summary-value positive';
+        } else {
+            elProvYoC.innerText = '—';
+            elProvYoC.className = 'summary-value';
+        }
+    }
+
+    // Balão de ajuda do Payback: composição do cálculo com os valores atuais.
+    const elYocTip = document.getElementById('yocHelpTip');
+    if (elYocTip) {
+        elYocTip.textContent = 'Payback de Proventos = Proventos Recebidos (' + formatCurrency(proventosTotal) +
+            ') ÷ Total Investido atual (' + formatCurrency(data.totalInvested) +
+            '). Quanto do custo da posição que você ainda tem já voltou em proventos. Sem posição, não há o que calcular.';
+    }
+
     // Preço Médio Ajustado (com proventos) = (Investido - Proventos) / Qtd.
     // Exceções: sem posição em carteira (Qtd = 0) -> "—" (evita divisão por
     // zero); se Proventos > Investido, o ajustado fica NEGATIVO de propósito
@@ -123,11 +160,11 @@ function updateDashboard() {
     const elAvgAdj = document.getElementById('valAvgPriceAdj');
     if (elAvgAdj) {
         if (data.totalCoins > 0) {
-            const adj = (data.totalInvested - proventosTotal) / data.totalCoins;
-            // Seta ▼ (verde) quando o ajustado caiu em relação ao preço médio
-            // atual — ou seja, sempre que há proventos rateados na posição.
+            // Trava em zero: proventos reduzem o custo efetivo até no máximo R$ 0
+            // (nunca negativo). Seta ▼ (verde) quando caiu vs. preço médio atual.
+            const adj = Math.max(0, (data.totalInvested - proventosTotal) / data.totalCoins);
             const dropped = adj < data.avgPrice;
-            elAvgAdj.innerText = formatCurrency(adj) + (dropped ? ' ▼' : '');
+            elAvgAdj.innerText = formatUnitPrice(adj) + (dropped ? ' ▼' : '');
             elAvgAdj.className = 'summary-value ' + (dropped ? 'positive' : '');
         } else {
             elAvgAdj.innerText = '—';
@@ -152,9 +189,19 @@ function updateDashboard() {
         ...row
     }));
 
-    // Linhas de proventos: "R$ por ação" = valor / posição na data (qtyHeldOn).
+    // Linhas de proventos. Para cada um (em ordem cronológica):
+    // - "R$ por cota" = valor / posição na data;
+    // - YoC do provento = valor / custo AJUSTADO na data, onde
+    //   custo ajustado = custo das cotas na data − proventos recebidos ANTES
+    //   deste. À medida que os proventos se acumulam, o custo ajustado cai (e o
+    //   % tende a subir). `accProv` acumula os proventos anteriores.
+    let accProv = 0;
     const proventoRows = proventos.map(p => {
-        const held = qtyHeldOn(p.dateTransaction);
+        const cb = costBasisOn(p.dateTransaction);
+        const held = cb.coins;
+        const adjustedCost = cb.invested - accProv;
+        const yoc = adjustedCost > 0 ? p.brl / adjustedCost : null;
+        accProv += p.brl; // passa a contar este provento para os próximos
         return {
             realId: p.id,
             date: p.dateTransaction,
@@ -164,6 +211,7 @@ function updateDashboard() {
             heldQty: held,          // posição na data (calculada em tela, não persistida)
             brl: p.brl,
             unitPrice: held > 0 ? p.brl / held : null,
+            yoc: yoc,               // Yield on Cost do provento (custo ajustado)
             realizedProfit: null,
             potential: null,
             status: 'closed'
@@ -192,7 +240,9 @@ function updateDashboard() {
         // mostra o valor recebido (verde).
         let resultHtml = '—';
         if (row.kind === 'income') {
-            resultHtml = resultTag('Provento', row.brl, 'provento');
+            // Provento: valor recebido + YoC do provento (custo ajustado).
+            const pct = row.yoc != null ? ' · ' + formatPct(row.yoc) : '';
+            resultHtml = `<span class="tag provento positive"><span class="tag-label">Provento</span>+${formatCurrency(row.brl)}${pct}</span>`;
         } else if (row.type === 'Venda' && row.realizedProfit !== null) {
             resultHtml = resultTag('Realizado', row.realizedProfit, 'realizado');
         } else if (row.type === 'Compra' && row.status === 'open') {
@@ -441,7 +491,7 @@ async function refreshPrice() {
     }
     setPriceStatus('Atualizando preço…');
     try {
-        const price = await fetchAssetPriceBRL(asset.marketId);
+        const price = await fetchAssetPrice(asset);
         const record = saveLastPrice(asset.id, price);
         document.getElementById('currentPriceInput').value = formatPrice(price);
         updateDashboard();

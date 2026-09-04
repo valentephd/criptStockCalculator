@@ -25,6 +25,14 @@ function formatUnitPrice(value) {
     });
 }
 
+// Formata uma razão (0,017) como porcentagem pt-BR (ex.: "1,70%").
+function formatPct(ratio) {
+    return (Number(ratio) * 100).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }) + '%';
+}
+
 // Lê o preço aceitando pt-BR ("1.234,56") ou número cru ("1234.56").
 function parsePrice(str) {
     str = String(str).trim();

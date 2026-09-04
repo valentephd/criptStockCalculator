@@ -107,6 +107,64 @@ h2 {
     font-size: 1.1em;
     white-space: nowrap;
 }
+/* Ícone de ajuda (i) em círculo azul + balão escuro acima ao passar o mouse. */
+.help {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+.help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    font-style: italic;
+    font-family: Georgia, 'Times New Roman', serif;
+    cursor: help;
+}
+.help-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 240px;
+    max-width: 240px;
+    background-color: #123b5c;
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: normal;
+    line-height: 1.35;
+    white-space: normal;
+    text-align: left;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease;
+    z-index: 50;
+}
+/* Setinha do balão apontando para o ícone. */
+.help-tip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #123b5c;
+}
+.help:hover .help-tip {
+    opacity: 1;
+    visibility: visible;
+}
 
 .form-group {
     display: flex;
