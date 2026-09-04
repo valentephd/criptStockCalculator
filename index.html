@@ -25,15 +25,95 @@
                 <h2>Bem-vindo ao Meu Controle Cripto 👋</h2>
                 <p>Acompanhe suas operações de compra e venda, o preço médio, o valor de mercado e o lucro realizado de cada ativo.</p>
                 <p>Use o <strong>menu</strong> (botão ☰) para abrir o <strong>Cadastro de Ativos</strong> e entrar no painel de cada um.</p>
+                <p>Este sistema funciona <strong>sem banco de dados</strong>: todos os seus dados ficam salvos apenas no <strong>seu próprio navegador</strong> (LocalStorage), sem servidor e sem login.</p>
+                <p>Por isso, <strong>a responsabilidade pelos dados é sua</strong>. Faça <strong>backups com frequência</strong> (menu <strong>Backup</strong>) para não perdê-los ao limpar o navegador, trocar de máquina ou em caso de qualquer problema. Você pode recompô-los depois pelo menu <strong>Restaurar</strong>.</p>
+                <p>Essa escolha é proposital: evita as transações e a complexidade de um banco de dados, mantendo a ferramenta <strong>simples, rápida e 100% local</strong> para o seu controle pessoal de ativos.</p>
+            </div>
+
+            <div class="card">
+                <h2>Total Investido por Tipo</h2>
+                <p id="investedEmpty" style="display:none; color: var(--text-dim);">Nenhuma posição investida no momento.</p>
+                <div class="pie-wrap" id="pieWrap" style="display:none;">
+                    <div class="pie" id="pieChart"></div>
+                    <div class="pie-legend" id="pieLegend"></div>
+                </div>
             </div>
         </main>
     </div>
 </div>
 
+<script src="js/format.js"></script>
+<script src="js/portfolio.js"></script>
 <script src="js/config.js"></script>
 <script src="js/assets.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/price.js"></script>
 <script src="js/shell.js"></script>
+<script>
+    // Rótulos e cores por tipo (mesmos das outras telas; fallback dinâmico).
+    const TYPE_LABELS = { crypto: 'Criptomoedas', FII: 'FIIs' };
+    const TYPE_COLORS = { crypto: '#5b8def', FII: '#d9a441' };
+    const FALLBACK_COLORS = ['#4bbf8a', '#e0757f', '#a78bfa', '#f0a868', '#5bd1d7', '#c98bdb'];
+
+    function colorForType(type, idx) {
+        return TYPE_COLORS[type] || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+    }
+
+    // Total investido (posição atual) de um ativo, via o mesmo motor das demais
+    // telas. Só buy/sell alimentam o motor; o preço não afeta o total investido.
+    function investedOf(asset, allTx) {
+        window.transactions = allTx.filter(t =>
+            t.assetId === asset.id && (t.type === 'buy' || t.type === 'sell'));
+        document.getElementById('currentPriceInput').value = '0';
+        return processPortfolio().totalInvested;
+    }
+
+    window.addEventListener('load', () => {
+        const assets = loadAssets().filter(a => a.isActive !== false);
+        const allTx = loadTransactions();
+
+        // Soma do total investido por tipo, na ordem em que os tipos aparecem.
+        const totals = {};
+        const order = [];
+        assets.forEach(a => {
+            const t = a.type || '—';
+            if (!(t in totals)) { totals[t] = 0; order.push(t); }
+            totals[t] += investedOf(a, allTx);
+        });
+        const grand = order.reduce((s, t) => s + totals[t], 0);
+
+        const emptyEl = document.getElementById('investedEmpty');
+        const pieWrap = document.getElementById('pieWrap');
+
+        if (grand <= 0) {
+            emptyEl.style.display = '';
+            pieWrap.style.display = 'none';
+            return;
+        }
+        emptyEl.style.display = 'none';
+        pieWrap.style.display = '';
+
+        // Gráfico de pizza (conic-gradient) + legenda (tipo, %, valor).
+        let acc = 0;
+        const stops = [];
+        const legend = order.map((t, i) => {
+            const ratio = totals[t] / grand;
+            const pct = ratio * 100;
+            const color = colorForType(t, i);
+            stops.push(`${color} ${acc}% ${acc + pct}%`);
+            acc += pct;
+            return `
+                <div class="legend-row">
+                    <span class="legend-swatch" style="background:${color}"></span>
+                    <span class="legend-name">${TYPE_LABELS[t] || t}</span>
+                    <span class="legend-val">${formatPct(ratio)} · ${formatCurrency(totals[t])}</span>
+                </div>`;
+        }).join('');
+
+        document.getElementById('pieChart').style.background = `conic-gradient(${stops.join(',')})`;
+        document.getElementById('pieLegend').innerHTML = legend;
+    });
+</script>
 
 </body>
 </html>
