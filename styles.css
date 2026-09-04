@@ -151,6 +151,13 @@ th {
 .positive { color: var(--positive); }
 .negative { color: var(--negative); }
 
+/* Cor da coluna "Operação" (todos os ativos), alinhada ao padrão do modal:
+   compra = vermelho, venda = azul, provento = verde. */
+.op-label { font-weight: bold; }
+.op-buy { color: var(--negative); }
+.op-sell { color: var(--accent); }
+.op-income { color: var(--positive); }
+
 /* Tag (pílula) de resultado no histórico */
 .tag {
     display: inline-flex;
@@ -611,6 +618,44 @@ th {
 }
 .op-toggle.toggle-sell .op-toggle-knob {
     left: 5px;
+}
+
+/* Controle segmentado de 3 opções (FII): Compra / Venda / Provento */
+.op-seg {
+    display: flex;
+    align-self: center;
+    margin-top: 4px;
+    border: 1px solid var(--border);
+    border-radius: 23px;
+    overflow: hidden;
+    background-color: var(--panel-bg);
+}
+.op-seg-btn {
+    background-color: transparent;
+    color: var(--text-dim);
+    border: none;
+    border-radius: 0;
+    padding: 10px 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+.op-seg-btn:hover {
+    background-color: rgba(91, 141, 239, 0.12);
+    color: var(--text);
+}
+.op-seg-btn.active {
+    color: #fff;
+}
+.op-seg-btn[data-type="buy"].active { background-color: #cf6679; }
+.op-seg-btn[data-type="sell"].active { background-color: #4dabf7; }
+.op-seg-btn[data-type="income"].active { background-color: var(--positive); }
+
+/* Grupo do campo Quantidade (oculto no modo Provento) */
+.op-qty-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 /* Botão de editar linha do histórico */

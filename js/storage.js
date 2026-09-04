@@ -3,12 +3,16 @@
 
 const STORAGE_KEY = 'transactions';
 
+// Tipos de operação aceitos. 'income' = provento/recebimento (ex.: FII):
+// não movimenta papéis (assetQuantity = 0), apenas registra o valor recebido.
+const VALID_TX_TYPES = ['buy', 'sell', 'income'];
+
 // Valida que o dado é um array de operações no formato novo
 // { type, assetId, assetQuantity, brl }. id/dateTransaction são preenchidos
 // pela normalização se faltarem.
 function isValidTransactions(data) {
     return Array.isArray(data) && data.every(tx =>
-        tx && (tx.type === 'buy' || tx.type === 'sell') &&
+        tx && VALID_TX_TYPES.indexOf(tx.type) !== -1 &&
         typeof tx.assetId === 'number' &&
         typeof tx.assetQuantity === 'number' && isFinite(tx.assetQuantity) &&
         typeof tx.brl === 'number' && isFinite(tx.brl)

@@ -39,6 +39,10 @@
                             <span class="summary-label">Preço Médio Atual</span>
                             <span class="summary-value" id="valAvgPrice">R$ 0,00</span>
                         </div>
+                        <div class="summary-line fii-only" style="display:none;">
+                            <span class="summary-label">Preço Médio Ajustado (com proventos)</span>
+                            <span class="summary-value" id="valAvgPriceAdj">R$ 0,00</span>
+                        </div>
                         <div class="summary-line">
                             <span class="summary-label">Total Investido</span>
                             <span class="summary-value" id="valTotalInvested">R$ 0,00</span>
@@ -53,6 +57,10 @@
                         <div class="summary-line">
                             <span class="summary-label">Lucro Realizado Total</span>
                             <span class="summary-value" id="valRealizedProfit">R$ 0,00</span>
+                        </div>
+                        <div class="summary-line fii-only" style="display:none;">
+                            <span class="summary-label">Proventos Recebidos</span>
+                            <span class="summary-value" id="valProventos">R$ 0,00</span>
                         </div>
                         <div class="summary-line">
                             <span class="summary-label">Saldo Total Realizado</span>
@@ -101,14 +109,23 @@
                 <span class="op-toggle-knob"></span>
             </button>
 
+            <!-- Controle de 3 opções, exibido apenas para ativos do tipo FII -->
+            <div id="opTypeSeg" class="op-seg" style="display:none;">
+                <button type="button" class="op-seg-btn active" data-type="buy">Compra</button>
+                <button type="button" class="op-seg-btn" data-type="sell">Venda</button>
+                <button type="button" class="op-seg-btn" data-type="income">Provento</button>
+            </div>
+
             <label>Data da operação</label>
             <input type="date" id="opDate">
 
-            <label>Valor (R$)</label>
+            <label id="lblOpBrl">Valor (R$)</label>
             <input type="text" inputmode="decimal" id="opBrl" placeholder="0,00">
 
-            <label>Quantidade</label>
-            <input type="text" inputmode="decimal" id="opAave" placeholder="0,00000000">
+            <div id="opQtyGroup" class="op-qty-group">
+                <label>Quantidade</label>
+                <input type="text" inputmode="decimal" id="opAave" placeholder="0,00000000">
+            </div>
         </div>
         <div class="modal-actions">
             <button id="btnCancelModal" class="btn-secondary">Cancelar</button>

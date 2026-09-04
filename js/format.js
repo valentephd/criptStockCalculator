@@ -16,6 +16,15 @@ function formatPrice(value) {
     });
 }
 
+// Preço unitário em R$ com casas variáveis (2 a 8): mantém 2 casas nos valores
+// "redondos" e expande só o necessário (ex.: provento de R$ 0,083 por cota).
+function formatUnitPrice(value) {
+    return 'R$ ' + Number(value).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8
+    });
+}
+
 // Lê o preço aceitando pt-BR ("1.234,56") ou número cru ("1234.56").
 function parsePrice(str) {
     str = String(str).trim();
