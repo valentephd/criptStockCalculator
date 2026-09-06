@@ -33,9 +33,12 @@
             <div class="card">
                 <h2>Total Investido por Tipo</h2>
                 <p id="investedEmpty" style="display:none; color: var(--text-dim);">Nenhuma posição investida no momento.</p>
-                <div class="pie-wrap" id="pieWrap" style="display:none;">
-                    <div class="pie" id="pieChart"></div>
-                    <div class="pie-legend" id="pieLegend"></div>
+                <div class="invested-layout" id="investedLayout" style="display:none;">
+                    <div class="invested-left" id="typeList"></div>
+                    <div class="invested-right">
+                        <div class="pie" id="pieChart"></div>
+                        <div class="pie-legend" id="pieLegend"></div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -72,26 +75,61 @@
         const assets = loadAssets().filter(a => a.isActive !== false);
         const allTx = loadTransactions();
 
-        // Soma do total investido por tipo, na ordem em que os tipos aparecem.
+        // Total investido por tipo (e a lista de ativos de cada tipo, p/ drilldown).
         const totals = {};
+        const byType = {};
         const order = [];
         assets.forEach(a => {
             const t = a.type || '—';
-            if (!(t in totals)) { totals[t] = 0; order.push(t); }
-            totals[t] += investedOf(a, allTx);
+            if (!(t in totals)) { totals[t] = 0; byType[t] = []; order.push(t); }
+            const inv = investedOf(a, allTx);
+            totals[t] += inv;
+            byType[t].push({ name: a.name, symbol: a.symbol, invested: inv });
         });
         const grand = order.reduce((s, t) => s + totals[t], 0);
 
         const emptyEl = document.getElementById('investedEmpty');
-        const pieWrap = document.getElementById('pieWrap');
+        const layout = document.getElementById('investedLayout');
 
         if (grand <= 0) {
             emptyEl.style.display = '';
-            pieWrap.style.display = 'none';
+            layout.style.display = 'none';
             return;
         }
         emptyEl.style.display = 'none';
-        pieWrap.style.display = '';
+        layout.style.display = '';
+
+        // Lista à esquerda: tipo + total, com drilldown dos ativos (subtotais).
+        document.getElementById('typeList').innerHTML = order.map((t, i) => {
+            const color = colorForType(t, i);
+            const assetsHtml = byType[t]
+                .slice()
+                .sort((x, y) => y.invested - x.invested)
+                .map(x => `
+                    <div class="drill-asset">
+                        <span class="drill-asset-name">${x.symbol || x.name}</span>
+                        <span class="drill-asset-val">${formatCurrency(x.invested)}</span>
+                    </div>`).join('');
+            return `
+                <div class="drill-type">
+                    <div class="drill-head" data-type-toggle>
+                        <span class="drill-caret">▸</span>
+                        <span class="drill-swatch" style="background:${color}"></span>
+                        <span class="drill-name">${TYPE_LABELS[t] || t}</span>
+                        <span class="drill-total">${formatCurrency(totals[t])}</span>
+                    </div>
+                    <div class="drill-assets" hidden>${assetsHtml}</div>
+                </div>`;
+        }).join('');
+
+        // Drilldown: clicar no cabeçalho do tipo expande/retrai seus ativos.
+        document.getElementById('typeList').addEventListener('click', (e) => {
+            const head = e.target.closest('[data-type-toggle]');
+            if (!head) return;
+            const box = head.closest('.drill-type');
+            const open = box.classList.toggle('open');
+            box.querySelector('.drill-assets').hidden = !open;
+        });
 
         // Gráfico de pizza (conic-gradient) + legenda (tipo, %, valor).
         let acc = 0;

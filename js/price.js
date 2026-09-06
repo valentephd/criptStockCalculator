@@ -44,9 +44,16 @@ function loadLastPrice(assetId) {
 }
 
 // Salva/atualiza (upsert) o preço de um ativo e devolve o registro salvo.
-function saveLastPrice(assetId, price) {
+// `manual` = true quando o valor foi digitado pelo usuário (cotação não obtida
+// pela API); registra também a data/hora (updatedAt).
+function saveLastPrice(assetId, price, manual) {
     const list = loadLastPriceList();
-    const record = { assetId: assetId, price: price, updatedAt: new Date().toISOString() };
+    const record = {
+        assetId: assetId,
+        price: price,
+        updatedAt: new Date().toISOString(),
+        manual: !!manual
+    };
     const i = list.findIndex(p => p && p.assetId === assetId);
     if (i >= 0) list[i] = record; else list.push(record);
     localStorage.setItem(PRICE_KEY, JSON.stringify(list));

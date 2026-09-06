@@ -6,7 +6,10 @@ const DEFAULT_CONFIG = {
     menuExpanded: false,
     nextTransactionId: 1,
     nextAssetId: 1,
-    priceRefreshMinutes: 10
+    priceRefreshMinutes: 10,
+    showZeroedAssets: false,     // Lista de Ativos: exibir posições zeradas
+    showArchivedAssets: false,   // Lista de Ativos: exibir ativos desativados
+    collapsedAssetTypes: []      // Lista de Ativos: tipos com a seção recolhida
 };
 
 // Lê o objeto de configurações. Parte dos defaults e sobrepõe apenas as chaves

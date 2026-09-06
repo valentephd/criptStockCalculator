@@ -35,6 +35,18 @@
                     <span class="summary-label">Próximo ID de Ativo</span>
                     <span class="summary-value" id="cfgNextAsset">—</span>
                 </div>
+                <div class="summary-line">
+                    <span class="summary-label">Lista de Ativos — Posições Zeradas</span>
+                    <span class="summary-value" id="cfgShowZeroed">—</span>
+                </div>
+                <div class="summary-line">
+                    <span class="summary-label">Lista de Ativos — Desativados</span>
+                    <span class="summary-value" id="cfgShowArchived">—</span>
+                </div>
+                <div class="summary-line">
+                    <span class="summary-label">Lista de Ativos — Tipos Recolhidos</span>
+                    <span class="summary-value" id="cfgCollapsed">—</span>
+                </div>
             </div>
 
             <div class="card">
@@ -45,6 +57,25 @@
                     <button id="btnSaveRefresh">Salvar</button>
                 </div>
                 <p id="cfgStatus" class="price-status"></p>
+            </div>
+
+            <div class="card">
+                <h2>Cotações Salvas (lastPrice)</h2>
+                <p id="pricesEmpty" style="display:none; color: var(--text-dim);">Nenhuma cotação salva ainda.</p>
+                <div class="table-wrap">
+                <table id="pricesTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Ativo</th>
+                            <th>Preço</th>
+                            <th>Atualizado em</th>
+                            <th>Origem</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                </div>
             </div>
 
             <div class="card">
@@ -69,9 +100,11 @@
     </div>
 </div>
 
+<script src="js/format.js"></script>
 <script src="js/config.js"></script>
 <script src="js/assets.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/price.js"></script>
 <script src="js/shell.js"></script>
 <script>
     window.addEventListener('load', () => {
@@ -79,6 +112,29 @@
         document.getElementById('cfgMenu').textContent = cfg.menuExpanded ? 'Expandido (true)' : 'Recolhido (false)';
         document.getElementById('cfgNextTx').textContent = cfg.nextTransactionId;
         document.getElementById('cfgNextAsset').textContent = computeNextAssetId(loadAssets());
+        document.getElementById('cfgShowZeroed').textContent = cfg.showZeroedAssets ? 'Exibindo (true)' : 'Ocultas (false)';
+        document.getElementById('cfgShowArchived').textContent = cfg.showArchivedAssets ? 'Exibindo (true)' : 'Ocultos (false)';
+        const collapsed = Array.isArray(cfg.collapsedAssetTypes) ? cfg.collapsedAssetTypes : [];
+        document.getElementById('cfgCollapsed').textContent = collapsed.length ? collapsed.join(', ') : 'Nenhum';
+
+        // Cotações salvas (lastPrice) por ativo, com data/hora e origem.
+        const priceList = loadLastPriceList();
+        const pricesBody = document.querySelector('#pricesTable tbody');
+        const pricesEmpty = document.getElementById('pricesEmpty');
+        if (!priceList.length) {
+            pricesEmpty.style.display = '';
+        } else {
+            pricesEmpty.style.display = 'none';
+            pricesBody.innerHTML = priceList.map(rec => {
+                const a = getAssetById(rec.assetId);
+                const label = a ? (a.symbol + ' — ' + a.name) : ('Ativo #' + rec.assetId);
+                const date = rec.updatedAt ? new Date(rec.updatedAt).toLocaleString('pt-BR') : '—';
+                const origin = rec.manual
+                    ? '<span class="badge-type badge-type--fii">Manual</span>'
+                    : '<span class="badge-type">Automática</span>';
+                return `<tr><td>${rec.assetId}</td><td>${label}</td><td>R$ ${formatPrice(rec.price)}</td><td>${date}</td><td>${origin}</td></tr>`;
+            }).join('');
+        }
 
         const input = document.getElementById('cfgRefresh');
         const status = document.getElementById('cfgStatus');

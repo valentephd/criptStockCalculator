@@ -185,14 +185,24 @@
         // Preço médio ajustado (com proventos), travado em zero.
         const adjustedAvg = d.totalCoins > 0
             ? Math.max(0, (d.totalInvested - proventos) / d.totalCoins) : 0;
+        const saldoTotal = d.totalRealizedProfit + proventos - d.totalInvested;
+        // Resultado Potencial = saldo que você teria se liquidasse TUDO agora ao
+        // lastPrice. Parte do saldo já realizado (vendas + proventos) e soma o
+        // valor de mercado da posição restante (d.marketValue = qtd × lastPrice).
+        // Sem cotação para valorar a posição restante -> null ("—").
+        const lastPrice = last ? last.price : 0;
+        const potential = (d.totalCoins > 0 && lastPrice <= 0)
+            ? null
+            : (saldoTotal + d.marketValue);
         return {
             totalCoins: d.totalCoins,
             avgPrice: d.avgPrice,
             adjustedAvg: adjustedAvg,
             totalInvested: d.totalInvested,
             proventos: proventos,
+            potential: potential,
             saldo: d.totalRealizedProfit - d.totalInvested,
-            saldoTotal: d.totalRealizedProfit + proventos - d.totalInvested
+            saldoTotal: saldoTotal
         };
     }
 
@@ -216,19 +226,29 @@
         const typeCls = a.type === 'FII' ? 'badge-type badge-type--fii' : 'badge-type';
         const nameCell = `${a.name} <span class="${typeCls}">${a.type}</span>${arch}`;
         const rowCls = archived ? 'row-archived' : '';
+        // Célula de Resultado Potencial (null quando não há cotação/posição -> "—").
+        const potHtml = pos.potential === null
+            ? '<td>—</td>'
+            : `<td class="${pos.potential >= 0 ? 'positive' : 'negative'}">${formatCurrency(pos.potential)}</td>`;
 
         if (isFiiType) {
-            const saldoCls = pos.saldoTotal >= 0 ? 'positive' : 'negative';
+            const saldoCls = pos.saldo >= 0 ? 'positive' : 'negative';
+            // Payback: % que os proventos representam do Total Investido (mesma
+            // conta do "Payback de Proventos" em asset.html).
+            const provPct = pos.totalInvested > 0
+                ? ` <span class="pct">(${formatPct(pos.proventos / pos.totalInvested)})</span>`
+                : '';
             return `
                 <tr class="${rowCls}">
                     <td>${idx + 1}</td>
                     <td>${nameCell}</td>
                     <td>${a.symbol}</td>
                     <td>${formatAmount(pos.totalCoins, decimals)}</td>
-                    <td>${formatUnitPrice(pos.adjustedAvg)}</td>
+                    <td>${formatUnitPrice(pos.avgPrice)}</td>
                     <td>${formatCurrency(pos.totalInvested)}</td>
-                    <td class="positive">${formatCurrency(pos.proventos)}</td>
-                    <td class="${saldoCls}">${formatCurrency(pos.saldoTotal)}</td>
+                    <td class="positive">${formatCurrency(pos.proventos)}${provPct}</td>
+                    <td class="${saldoCls}">${formatCurrency(pos.saldo)}</td>
+                    ${potHtml}
                     <td>${actionCells(a)}</td>
                 </tr>`;
         }
@@ -242,24 +262,63 @@
                 <td>${formatCurrency(pos.avgPrice)}</td>
                 <td>${formatCurrency(pos.totalInvested)}</td>
                 <td class="${saldoCls}">${formatCurrency(pos.saldo)}</td>
+                ${potHtml}
                 <td>${actionCells(a)}</td>
             </tr>`;
     }
 
+    // Somatório exibido no título da seção (valores SEPARADOS por " + ", nunca
+    // somados). Cripto: Investido + Saldo Total; FII: Investido + Proventos;
+    // outros: Investido + Proventos + Saldo Realizado.
+    function sectionSummary(type, items, grandInvested) {
+        let inv = 0, prov = 0, saldo = 0, potential = 0;
+        items.forEach(x => {
+            inv += x.pos.totalInvested;
+            prov += x.pos.proventos;
+            saldo += x.pos.saldo;
+            potential += (x.pos.potential || 0);
+        });
+        // colored=false no Total Investido (é só o montante, sem sinal); nos
+        // demais, verde/vermelho conforme o valor. `extra` = sufixo discreto
+        // (usado pela % do Total Investido em relação ao total geral).
+        const part = (label, val, colored, extra) => {
+            const cls = colored ? (val >= 0 ? ' positive' : ' negative') : '';
+            const ex = extra ? ` <span class="pct">(${extra})</span>` : '';
+            return `<span class="sec-sum-part${cls}"><span class="sec-sum-label">${label}</span><span class="sec-sum-value">${formatCurrency(val)}${ex}</span></span>`;
+        };
+        // % que o investido deste tipo representa do total investido (entre tipos).
+        const invPct = grandInvested > 0 ? formatPct(inv / grandInvested) : null;
+        const invPart = part('Total Investido', inv, false, invPct);
+        let base;
+        if (type === 'FII') {
+            base = [invPart, part('Dividendos Recebidos', prov, true)];
+        } else if (type === 'crypto') {
+            base = [invPart, part('Saldo Realizado', saldo, true)];
+        } else {
+            base = [invPart, part('Dividendos Recebidos', prov, true), part('Saldo Realizado', saldo, true)];
+        }
+        base.push(part('Resultado Potencial', potential, true));
+        // Cada totalizador é um "card" independente (valores nunca somados).
+        return base.join('');
+    }
+
     // Monta a seção (card + tabela) de um tipo, com colunas próprias de FII.
     // Cabeçalho clicável = sanfona (expande/retrai a tabela).
-    function renderTypeSection(type, items) {
+    function renderTypeSection(type, items, grandInvested) {
         const isFiiType = type === 'FII';
         const title = TYPE_LABELS[type] || type;
         const head = isFiiType
-            ? `<tr><th>#</th><th>Nome</th><th>Símbolo</th><th>Quantidade</th><th>Preço Médio Ajustado</th><th>Total Investido</th><th>Proventos Recebidos</th><th>Saldo Total Realizado</th><th>Ações</th></tr>`
-            : `<tr><th>#</th><th>Nome</th><th>Símbolo</th><th>Quantidade</th><th>Preço Médio Atual</th><th>Total Investido</th><th>Saldo Realizado</th><th>Ações</th></tr>`;
+            ? `<tr><th>#</th><th>Nome</th><th>Símbolo</th><th>Quantidade</th><th>Preço Médio Atual</th><th>Total Investido</th><th>Dividendos Recebidos</th><th>Saldo Realizado</th><th>Resultado Potencial</th><th>Ações</th></tr>`
+            : `<tr><th>#</th><th>Nome</th><th>Símbolo</th><th>Quantidade</th><th>Preço Médio Atual</th><th>Total Investido</th><th>Saldo Realizado</th><th>Resultado Potencial</th><th>Ações</th></tr>`;
         const body = items.map((x, idx) => renderAssetRow(x.a, x.pos, idx, isFiiType)).join('');
+        // Estado recolhido/expandido persistido por tipo (systemConfigs).
+        const collapsed = getConfig('collapsedAssetTypes', []).indexOf(type) !== -1;
         return `
-            <div class="card asset-section">
+            <div class="card asset-section${collapsed ? ' collapsed' : ''}" data-type="${type}">
                 <div class="section-header" data-toggle-section>
                     <span class="section-caret">▾</span>
                     <h2>${title}</h2>
+                    <span class="section-summary">${sectionSummary(type, items, grandInvested)}</span>
                     <span class="section-count">${items.length}</span>
                 </div>
                 <div class="section-body table-wrap">
@@ -294,29 +353,42 @@
             byType[t].push(x);
         });
 
-        container.innerHTML = types.map(t => renderTypeSection(t, byType[t])).join('');
+        // Total investido somando TODOS os tipos (base da % do "Total Investido").
+        const grandInvested = visible.reduce((s, x) => s + x.pos.totalInvested, 0);
+        container.innerHTML = types.map(t => renderTypeSection(t, byType[t], grandInvested)).join('');
     }
 
     window.addEventListener('load', () => {
+        // Estado inicial dos filtros vem do systemConfigs (persistido).
+        showArchived = getConfig('showArchivedAssets', false);
+        showZeroed = getConfig('showZeroedAssets', false);
+
+        const toggleBtn = document.getElementById('toggleArchived');
+        const toggleZeroBtn = document.getElementById('toggleZeroed');
+
+        // Reflete o estado (on/off) no texto e no destaque do botão.
+        function syncToggle(btn, on, showLabel, hideLabel) {
+            btn.textContent = on ? hideLabel : showLabel;
+            btn.classList.toggle('active', on);
+        }
+        syncToggle(toggleBtn, showArchived, 'Mostrar Desativados', 'Ocultar Desativados');
+        syncToggle(toggleZeroBtn, showZeroed, 'Mostrar Posições Zeradas', 'Ocultar Posições Zeradas');
+
         renderAssets();
 
-        // Toggle: mostrar/ocultar desativados
-        const toggleBtn = document.getElementById('toggleArchived');
+        // Toggle: mostrar/ocultar desativados (persiste no systemConfigs)
         toggleBtn.addEventListener('click', () => {
             showArchived = !showArchived;
-            toggleBtn.textContent = showArchived ? 'Ocultar Desativados' : 'Mostrar Desativados';
-            toggleBtn.classList.toggle('active', showArchived);
+            setConfig('showArchivedAssets', showArchived);
+            syncToggle(toggleBtn, showArchived, 'Mostrar Desativados', 'Ocultar Desativados');
             renderAssets();
         });
 
-        // Toggle: mostrar/ocultar ativos com posição zerada (padrão: ocultos)
-        const toggleZeroBtn = document.getElementById('toggleZeroed');
+        // Toggle: mostrar/ocultar posições zeradas (persiste no systemConfigs)
         toggleZeroBtn.addEventListener('click', () => {
             showZeroed = !showZeroed;
-            toggleZeroBtn.textContent = showZeroed
-                ? 'Ocultar Posições Zeradas'
-                : 'Mostrar Posições Zeradas';
-            toggleZeroBtn.classList.toggle('active', showZeroed);
+            setConfig('showZeroedAssets', showZeroed);
+            syncToggle(toggleZeroBtn, showZeroed, 'Mostrar Posições Zeradas', 'Ocultar Posições Zeradas');
             renderAssets();
         });
 
@@ -328,10 +400,18 @@
 
         // Ações das tabelas (delegado no container): sanfona, editar, reativar ou desativar
         document.getElementById('assetsContainer').addEventListener('click', (e) => {
-            // Sanfona: clique no cabeçalho da seção expande/retrai a lista.
+            // Sanfona: clique no cabeçalho expande/retrai a lista e persiste o
+            // estado por tipo no systemConfigs.
             const secHeader = e.target.closest('[data-toggle-section]');
             if (secHeader) {
-                secHeader.closest('.asset-section').classList.toggle('collapsed');
+                const card = secHeader.closest('.asset-section');
+                const collapsed = card.classList.toggle('collapsed');
+                const type = card.getAttribute('data-type');
+                const set = getConfig('collapsedAssetTypes', []);
+                const i = set.indexOf(type);
+                if (collapsed && i === -1) set.push(type);
+                else if (!collapsed && i !== -1) set.splice(i, 1);
+                setConfig('collapsedAssetTypes', set);
                 return;
             }
 

@@ -9,6 +9,7 @@ let assetSymbol = '';                        // símbolo do ativo (rótulos din�
 let currentAsset = null;                     // ativo da rota (?id=)
 let assetDecimals = 8;                       // casas decimais da quantidade do ativo
 let isFii = false;                           // ativo do tipo FII (habilita proventos)
+let priceFetchFailed = false;                // última busca de cotação (API) falhou?
 
 // Recalcula a visão do ativo da rota a partir da lista completa.
 // IMPORTANTE: `transactions` (que alimenta o motor) contém APENAS buy/sell;
@@ -131,7 +132,7 @@ function updateDashboard() {
         elProventos.className = 'summary-value positive';
     }
 
-    // Payback de Proventos = Proventos Recebidos ÷ Total Investido ATUAL.
+    // Payback de Proventos = Dividendos Recebidos ÷ Total Investido ATUAL.
     // Dinâmico: mede quanto do custo da posição que você AINDA tem já voltou em
     // proventos. Com 0 cotas (posição zerada) não há o que calcular -> "—".
     const elProvYoC = document.getElementById('valProventosYoC');
@@ -148,7 +149,7 @@ function updateDashboard() {
     // Balão de ajuda do Payback: composição do cálculo com os valores atuais.
     const elYocTip = document.getElementById('yocHelpTip');
     if (elYocTip) {
-        elYocTip.textContent = 'Payback de Proventos = Proventos Recebidos (' + formatCurrency(proventosTotal) +
+        elYocTip.textContent = 'Payback de Proventos = Dividendos Recebidos (' + formatCurrency(proventosTotal) +
             ') ÷ Total Investido atual (' + formatCurrency(data.totalInvested) +
             '). Quanto do custo da posição que você ainda tem já voltou em proventos. Sem posição, não há o que calcular.';
     }
@@ -493,15 +494,18 @@ async function refreshPrice() {
     try {
         const price = await fetchAssetPrice(asset);
         const record = saveLastPrice(asset.id, price);
+        priceFetchFailed = false;
         document.getElementById('currentPriceInput').value = formatPrice(price);
         updateDashboard();
         setPriceStatus('Atualizado em ' + formatDateTime(record.updatedAt), 'ok');
     } catch (e) {
+        priceFetchFailed = true; // habilita salvar a cotação digitada como manual
         const last = loadLastPrice(asset.id);
         if (last) {
-            setPriceStatus('Falha ao atualizar — usando preço de ' + formatDateTime(last.updatedAt), 'error');
+            setPriceStatus('Falha ao atualizar — usando preço de ' + formatDateTime(last.updatedAt) +
+                '. Você pode digitar a cotação manualmente.', 'error');
         } else {
-            setPriceStatus('Falha ao buscar o preço (' + e.message + ')', 'error');
+            setPriceStatus('Falha ao buscar o preço (' + e.message + '). Digite a cotação manualmente.', 'error');
         }
     }
 }
@@ -562,7 +566,18 @@ window.addEventListener('load', () => {
     priceEl.addEventListener('input', updateDashboard);
     priceEl.addEventListener('blur', () => {
         if (priceEl.value.trim() === '') return;
-        priceEl.value = formatPrice(parsePrice(priceEl.value));
+        const p = parsePrice(priceEl.value);
+        priceEl.value = formatPrice(p);
+        // Se a cotação automática falhou, persiste o valor digitado como MANUAL
+        // (com data/hora), evitando regravar um valor manual idêntico.
+        if (priceFetchFailed && p > 0 && currentAsset) {
+            const last = loadLastPrice(currentAsset.id);
+            if (!last || last.price !== p || !last.manual) {
+                const rec = saveLastPrice(currentAsset.id, p, true);
+                setPriceStatus('Preço manual salvo em ' + formatDateTime(rec.updatedAt), 'ok');
+                updateDashboard();
+            }
+        }
     });
     document.getElementById('btnRefreshPrice').addEventListener('click', refreshPrice);
 
